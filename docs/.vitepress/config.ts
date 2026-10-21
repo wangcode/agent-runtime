@@ -18,6 +18,7 @@ export default defineConfig({
     'examples/:ex/README.md': 'examples/:ex/index.md',
   },
   cleanUrls: true,
+  ignoreDeadLinks: ['localhostLinks'],
   markdown: {
     config(md) {
       // READMEs are rewritten to directory index pages; point links at the directory.
