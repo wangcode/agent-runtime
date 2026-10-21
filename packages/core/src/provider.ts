@@ -1,4 +1,5 @@
 import type { ContentBlock, ProviderEvent } from './events.js'
+import type { TranscriptStore } from './store.js'
 
 export interface ToolDefinition {
   name: string
@@ -31,6 +32,8 @@ export interface ConnectContext<Config = unknown> extends ProviderContext<Config
   /** Provider-specific resume point last persisted for this session, if any. */
   cursor: unknown
   signal: AbortSignal
+  /** Durable transcript storage, for providers that keep agent state on the caller side. */
+  transcripts: TranscriptStore
 }
 
 /**

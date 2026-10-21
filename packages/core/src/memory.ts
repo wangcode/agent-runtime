@@ -176,7 +176,16 @@ export class MemoryStore implements Store {
   }
 
   async deleteTranscript(key: TranscriptKey) {
-    this.transcripts.delete(transcriptKey(key))
+    if (key.subpath !== undefined) {
+      this.transcripts.delete(transcriptKey(key))
+      return
+    }
+    const prefix = `${key.projectKey}\u0000${key.sessionId}\u0000`
+    for (const k of [...this.transcripts.keys()]) if (k.startsWith(prefix)) this.transcripts.delete(k)
+  }
+
+  async hasTranscript(sessionId: string) {
+    return [...this.transcripts.keys()].some((k) => k.split('\u0000')[1] === sessionId)
   }
 
   private mustGet(id: string) {

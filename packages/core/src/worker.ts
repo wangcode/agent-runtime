@@ -130,7 +130,7 @@ export class SessionWorker {
       try {
         const fresh = await this.rt.store.getSession(this.sessionId)
         const cursor = fresh?.providerCursor ?? null
-        for await (const out of abortable(this.adapter.connect({ ...this.ctx, cursor, signal: this.signal }), this.signal)) {
+        for await (const out of abortable(this.adapter.connect({ ...this.ctx, cursor, signal: this.signal, transcripts: this.rt.store }), this.signal)) {
           attempt = 0
           if (this.signal.aborted) break
           await this.handleOutput(out)

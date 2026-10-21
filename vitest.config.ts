@@ -8,6 +8,7 @@ export default defineConfig({
     alias: {
       '@agent-runtime/core/rxjs': fileURLToPath(new URL('./packages/core/src/rxjs.ts', import.meta.url)),
       '@agent-runtime/core/testing': fileURLToPath(new URL('./packages/core/src/testing/index.ts', import.meta.url)),
+      '@agent-runtime/agentcore-runtime/claude-agent-sdk': fileURLToPath(new URL('./packages/agentcore-runtime/src/claude-agent-sdk/index.ts', import.meta.url)),
       '@agent-runtime/core': pkg('core'),
       '@agent-runtime/protocol': pkg('protocol'),
       '@agent-runtime/store-postgres': pkg('store-postgres'),

@@ -43,6 +43,9 @@
       ],
       "@agent-runtime/agentcore-runtime": [
         "packages/agentcore-runtime/src/index.ts"
+      ],
+      "@agent-runtime/agentcore-runtime/claude-agent-sdk": [
+        "packages/agentcore-runtime/src/claude-agent-sdk/index.ts"
       ]
     }
   }

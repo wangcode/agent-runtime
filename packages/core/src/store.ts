@@ -100,7 +100,11 @@ export interface Store {
   loadTranscript(key: TranscriptKey): Promise<unknown[] | null>
   listTranscriptSubkeys(key: { projectKey: string; sessionId: string }): Promise<string[]>
   deleteTranscript(key: TranscriptKey): Promise<void>
+  /** Whether any transcript entries exist for this agent session id (under any project key). */
+  hasTranscript(sessionId: string): Promise<boolean>
 }
+
+export type TranscriptStore = Pick<Store, 'appendTranscript' | 'loadTranscript' | 'listTranscriptSubkeys' | 'deleteTranscript' | 'hasTranscript'>
 
 /** Cross-instance notifications. Topics are plain strings; payloads must stay under ~7KB. */
 export interface Bus {

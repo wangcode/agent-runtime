@@ -136,6 +136,7 @@ describe('ManagedAgentsProvider', () => {
     tools: [],
     cursor,
     signal,
+    transcripts: new MemoryStore(),
   })
 
   async function take(iter: AsyncIterator<ProviderOutput>, n: number) {

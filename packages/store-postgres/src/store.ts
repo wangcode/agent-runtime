@@ -330,4 +330,9 @@ export class PgStore implements Store {
       ])
     }
   }
+
+  async hasTranscript(sessionId: string) {
+    const { rowCount } = await this.pool.query(`SELECT 1 FROM ${this.s}.transcripts WHERE session_id = $1 LIMIT 1`, [sessionId])
+    return (rowCount ?? 0) > 0
+  }
 }
