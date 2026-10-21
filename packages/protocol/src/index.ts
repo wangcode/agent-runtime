@@ -30,6 +30,8 @@ export interface HelloMessage {
   /** Driver configuration (model, system prompt, allowed tools, ...). */
   config: unknown
   tools: ToolDefinition[]
+  /** Features the caller enabled; the container must not use anything not listed here. */
+  features?: { approvalUpdatedInput?: boolean }
 }
 
 export type ClientCommand =

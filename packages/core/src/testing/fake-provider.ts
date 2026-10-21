@@ -1,6 +1,7 @@
 import type { ContentBlock } from '../events.js'
 import type {
   ApprovalDecision,
+  ProviderCapabilities,
   ConnectContext,
   CreatedProviderSession,
   ProviderAdapter,
@@ -23,6 +24,7 @@ export type FakeCall =
  */
 export class FakeProvider implements ProviderAdapter {
   readonly name = 'fake'
+  capabilities: ProviderCapabilities = { approvalUpdatedInput: true, thinkingContent: 'full', turnCost: true }
   readonly calls: FakeCall[] = []
   readonly connections: Array<{ sessionId: string; cursor: unknown }> = []
   onSend?: (sessionId: string, content: ContentBlock[], provider: FakeProvider) => void | Promise<void>

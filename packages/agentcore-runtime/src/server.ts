@@ -50,10 +50,10 @@ export async function startAgentCoreServer(options: AgentCoreServerOptions): Pro
     }
   }
 
-  const getOrCreate = (sessionId: string, config: unknown, tools: ContainerSession['tools']) => {
+  const getOrCreate = (sessionId: string, config: unknown, tools: ContainerSession['tools'], features: ContainerSession['features']) => {
     const existing = sessions.get(sessionId)
     if (existing && !existing.ended) return { session: existing, created: false }
-    const session = new ContainerSession(sessionId, config, tools, options.driver, {
+    const session = new ContainerSession(sessionId, config, tools, options.driver, features, {
       bootId,
       maxLogEvents: options.maxLogEvents ?? 10_000,
       onHealthChange,
@@ -85,7 +85,7 @@ export async function startAgentCoreServer(options: AgentCoreServerOptions): Pro
     for await (const c of req) chunks.push(c as Buffer)
     const body = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}') as { sessionId?: string; prompt?: string; config?: unknown }
     const sessionId = body.sessionId ?? (req.headers[SESSION_HEADER] as string | undefined) ?? newId()
-    const { session } = getOrCreate(sessionId, body.config ?? {}, [])
+    const { session } = getOrCreate(sessionId, body.config ?? {}, [], { approvalUpdatedInput: false })
     await session.start()
     res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' })
     let done = false
@@ -133,7 +133,7 @@ export async function startAgentCoreServer(options: AgentCoreServerOptions): Pro
           ws.close(4002, `unsupported protocol ${msg.protocol}`)
           return
         }
-        const res = getOrCreate(msg.sessionId, msg.config, msg.tools)
+        const res = getOrCreate(msg.sessionId, msg.config, msg.tools, { approvalUpdatedInput: msg.features?.approvalUpdatedInput === true })
         session = res.session
         session.attach(ws, msg, res.created)
         void session.start().catch((err) => logger.error('driver start failed', { sessionId: msg?.type === 'hello' ? msg.sessionId : '', error: errorMessage(err) }))

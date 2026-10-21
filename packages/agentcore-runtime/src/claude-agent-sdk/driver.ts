@@ -128,7 +128,7 @@ export class ClaudeAgentSdkDriver implements AgentDriver {
       try {
         const decision = await session.requestApproval({ toolUseId: toolUseID, name: toolName, input })
         return decision.behavior === 'allow'
-          ? { behavior: 'allow', updatedInput: decision.updatedInput ?? input }
+          ? { behavior: 'allow', updatedInput: (session.features.approvalUpdatedInput && decision.updatedInput) || input }
           : { behavior: 'deny', message: decision.message ?? 'Denied by policy' }
       } catch (err) {
         return { behavior: 'deny', message: errorMessage(err) }

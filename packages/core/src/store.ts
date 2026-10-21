@@ -22,6 +22,7 @@ export interface NewEvent {
   raw?: unknown
   sourceId?: string
   provider?: string
+  threadId?: string
 }
 
 export type CommandKind = 'send' | 'interrupt' | 'resolve_approval' | 'terminate'

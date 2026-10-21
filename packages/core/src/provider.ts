@@ -1,4 +1,4 @@
-import type { ContentBlock, ProviderEvent } from './events.js'
+import type { ContentBlock, ProviderEvent, Usage } from './events.js'
 import type { TranscriptStore } from './store.js'
 
 export interface ToolDefinition {
@@ -46,6 +46,8 @@ export interface ConnectContext<Config = unknown> extends ProviderContext<Config
  * - `approval_request`: the agent wants to run a tool that needs a permission decision.
  * - `actions_reset`: the provider lost in-flight requests (e.g. a fresh AgentCore microVM);
  *   outstanding tool/approval requests can never be answered and are cancelled.
+ * - `usage`: token/cost usage of one model request; the runtime sums it per turn into
+ *   `turn.completed.usage` (unless the adapter's `turn.completed` already carries the turn total).
  */
 export type ProviderOutput =
   | { kind: 'event'; event: ProviderEvent }
@@ -54,14 +56,40 @@ export type ProviderOutput =
   | { kind: 'tool_request'; requestId: string; toolUseId: string; name: string; input: unknown }
   | { kind: 'approval_request'; requestId: string; toolUseId: string; name: string; input: unknown }
   | { kind: 'actions_reset'; reason: string }
+  | { kind: 'usage'; usage: Usage }
 
 export interface CreatedProviderSession {
   providerSessionId: string
   cursor?: unknown
 }
 
+/**
+ * What a provider can do beyond the behaviour every provider guarantees (see docs/behavior-spec.md).
+ * Callers can read these via `session.capabilities()`; using an unsupported feature throws
+ * `CapabilityError` instead of being silently ignored.
+ */
+export interface ProviderCapabilities {
+  /** Approvals may change the tool input (`updatedInput`). Off unless the provider supports it and the caller enabled it. */
+  approvalUpdatedInput: boolean
+  /** `full`: thinking text always complete. `best_effort`: assembled from live deltas, may be partial after a reconnect. */
+  thinkingContent: 'full' | 'best_effort'
+  /** `turn.completed.usage.costUsd` is provided. */
+  turnCost: boolean
+}
+
+export class CapabilityError extends Error {
+  constructor(
+    message: string,
+    readonly capability: keyof ProviderCapabilities,
+  ) {
+    super(message)
+    this.name = 'CapabilityError'
+  }
+}
+
 export interface ProviderAdapter<Config = unknown> {
   readonly name: string
+  readonly capabilities: ProviderCapabilities
   createSession(input: { sessionId: string; config: Config; metadata: Record<string, unknown>; tools: ToolDefinition[] }): Promise<CreatedProviderSession>
   /**
    * Long-lived stream of outputs. Adapters reconnect internally and fill gaps from `cursor`;

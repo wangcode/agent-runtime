@@ -83,4 +83,8 @@ CREATE TABLE IF NOT EXISTS {{schema}}.migrations (
 );
 `,
   },
+  {
+    name: '002_event_thread',
+    sql: `ALTER TABLE {{schema}}.events ADD COLUMN IF NOT EXISTS thread_id text;`,
+  },
 ]

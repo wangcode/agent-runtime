@@ -1,5 +1,5 @@
-import { type ProviderEvent, type RuntimeEvent, type SessionStatus, isEphemeralType } from './events.js'
-import type { ApprovalDecision, ProviderAdapter, ProviderContext, ProviderOutput, ToolResult } from './provider.js'
+import { type ProviderEvent, type RuntimeEvent, type SessionStatus, type Usage, isEphemeralType } from './events.js'
+import { type ApprovalDecision, CapabilityError, type ProviderAdapter, type ProviderContext, type ProviderOutput, type ToolResult } from './provider.js'
 import type { ActionRecord, CommandRecord, SessionRecord } from './store.js'
 import { topics } from './store.js'
 import { normalizeToolOutput } from './tools.js'
@@ -8,6 +8,14 @@ import { abortable, backoff, deferred, errorMessage, newId, sleep } from './util
 
 /** NOTIFY payloads are capped at 8000 bytes; keep delta chunks well below that. */
 const MAX_DELTA_CHARS = 1500
+
+function addUsage(total: Usage, u: Usage): Usage {
+  const out: Usage = { ...total }
+  for (const key of ['inputTokens', 'outputTokens', 'cacheReadInputTokens', 'cacheCreationInputTokens', 'costUsd'] as const) {
+    if (u[key] !== undefined) out[key] = (out[key] ?? 0) + u[key]
+  }
+  return out
+}
 
 /**
  * Owns one session on this instance while it holds the lease: keeps the provider stream open,
@@ -32,6 +40,10 @@ export class SessionWorker {
   private unsubscribe: (() => void) | undefined
   private release = true
   private stopping = false
+  /** An interrupt was sent during the current turn; its turn.completed becomes `interrupted`. */
+  private interruptRequested = false
+  /** Usage reported by `usage` outputs during the current turn. */
+  private turnUsage: Usage | undefined
 
   constructor(
     private readonly rt: RuntimeInternals,
@@ -172,13 +184,37 @@ export class SessionWorker {
       case 'actions_reset':
         await this.cancelPendingActions(out.reason)
         break
+      case 'usage':
+        this.turnUsage = addUsage(this.turnUsage ?? {}, out.usage)
+        break
     }
     this.scheduleIdleCheck()
   }
 
-  /** Persist (or fan out, for deltas) one event. */
+  /**
+   * Persist (or fan out, for deltas) one event, enforcing the behaviour every provider must share
+   * (docs/behavior-spec.md): no repeated status, `session.status: idle` right before every
+   * `turn.completed`, `interrupted` stop reason after an interrupt, per-turn usage totals.
+   */
   private async emit(event: ProviderEvent): Promise<void> {
     if (isEphemeralType(event.type)) return this.publishEphemeral(event)
+    if (event.type === 'session.status' && event.data.status === this.status) return
+    if (event.type === 'turn.completed') {
+      if (this.status !== 'idle' && this.status !== 'terminated') {
+        await this.emit({ type: 'session.status', data: { status: 'idle' }, ...(event.sourceId ? { sourceId: `${event.sourceId}:idle` } : {}) })
+      }
+      const usage = event.data.usage ?? this.turnUsage
+      event = {
+        ...event,
+        data: { ...event.data, stopReason: this.interruptRequested ? 'interrupted' : event.data.stopReason, ...(usage ? { usage } : {}) },
+      }
+      this.interruptRequested = false
+      this.turnUsage = undefined
+    }
+    await this.persist(event)
+  }
+
+  private async persist(event: ProviderEvent): Promise<void> {
     const persisted = await this.rt.store.appendEvent(this.sessionId, { ...event, provider: this.record.provider })
     if (!persisted) return
     if (event.type === 'session.status') await this.setStatus((event.data as { status: SessionStatus }).status)
@@ -203,6 +239,7 @@ export class SessionWorker {
         type: chunk.type,
         data: chunk.data,
         provider: this.record.provider,
+        ...(chunk.threadId ? { threadId: chunk.threadId } : {}),
       } as RuntimeEvent
       await this.rt.bus.publish(topics.ephemeral(this.sessionId), JSON.stringify(live))
     }
@@ -245,11 +282,19 @@ export class SessionWorker {
       switch (cmd.kind) {
         case 'send': {
           const { content } = cmd.payload as { content: import('./events.js').ContentBlock[] }
+          const startsTurn = this.status === 'idle'
           await this.emit({ type: 'user.message', data: { content }, sourceId: `cmd:${cmd.id}` })
+          if (startsTurn) {
+            this.interruptRequested = false
+            this.turnUsage = undefined
+          }
+          // The runtime starts the turn itself, so the timing is the same for every provider.
+          await this.emit({ type: 'session.status', data: { status: 'running' }, sourceId: `cmd:${cmd.id}:running` })
           await this.adapter.sendMessage(this.ctx, content)
           break
         }
         case 'interrupt':
+          if (this.status !== 'idle' && this.status !== 'terminated') this.interruptRequested = true
           await this.adapter.interrupt(this.ctx)
           break
         case 'resolve_approval': {
@@ -257,6 +302,9 @@ export class SessionWorker {
           const action = await this.rt.store.getAction(approvalId)
           if (!action || action.sessionId !== this.sessionId || action.kind !== 'approval') throw new Error(`Unknown approval ${approvalId}`)
           if (action.status !== 'pending') throw new Error(`Approval ${approvalId} is already ${action.status}`)
+          if (decision.updatedInput && !this.adapter.capabilities.approvalUpdatedInput) {
+            throw new CapabilityError(`Provider "${this.record.provider}" does not support changing tool input on approval`, 'approvalUpdatedInput')
+          }
           const ok = await this.resolveApproval(action, decision, 'user')
           if (!ok) throw new Error(`Approval ${approvalId} was resolved concurrently`)
           break
@@ -356,6 +404,13 @@ export class SessionWorker {
       verdict = 'ask'
     }
     if (typeof verdict === 'string') verdict = { decision: verdict } as Exclude<typeof verdict, string>
+    if (verdict.decision === 'allow' && verdict.updatedInput && !this.adapter.capabilities.approvalUpdatedInput) {
+      this.rt.logger.error('approval policy returned updatedInput, which this provider does not support; asking instead', {
+        sessionId: this.sessionId,
+        provider: this.record.provider,
+      })
+      verdict = { decision: 'ask' }
+    }
     const timeoutMs = verdict.decision === 'ask' && 'timeoutMs' in verdict && verdict.timeoutMs ? verdict.timeoutMs : approvals.timeoutMs
 
     const { action, created } = await this.rt.store.upsertAction({
@@ -379,7 +434,8 @@ export class SessionWorker {
       this.armApprovalTimer(action)
     } else {
       const message = 'message' in verdict ? verdict.message : undefined
-      await this.resolveApproval(action, { behavior: verdict.decision, ...(message ? { message } : {}) }, 'policy')
+      const updatedInput = 'updatedInput' in verdict ? verdict.updatedInput : undefined
+      await this.resolveApproval(action, { behavior: verdict.decision, ...(message ? { message } : {}), ...(updatedInput ? { updatedInput } : {}) }, 'policy')
     }
   }
 

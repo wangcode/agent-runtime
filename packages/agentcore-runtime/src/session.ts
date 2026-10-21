@@ -45,6 +45,7 @@ export class ContainerSession {
     readonly config: unknown,
     readonly tools: ToolDefinition[],
     private readonly driver: AgentDriver,
+    readonly features: { approvalUpdatedInput: boolean },
     private readonly opts: ContainerSessionOptions,
   ) {}
 
@@ -191,6 +192,7 @@ export class ContainerSession {
       sessionId: this.sessionId,
       config: this.config,
       tools: this.tools,
+      features: this.features,
       emit: (event) => this.emit(event),
       requestTool: (req) => this.request<ToolResult>({ type: 'tool_request', requestId: newId(), ...req }),
       requestApproval: (req) => this.request<ApprovalDecision>({ type: 'approval_request', requestId: newId(), ...req }),

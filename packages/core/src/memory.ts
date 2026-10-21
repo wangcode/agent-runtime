@@ -92,6 +92,7 @@ export class MemoryStore implements Store {
       data: clone(event.data),
       ...(event.raw !== undefined ? { raw: clone(event.raw) } : {}),
       ...(event.provider ? { provider: event.provider } : {}),
+      ...(event.threadId ? { threadId: event.threadId } : {}),
     } as PersistedEvent
     let list = this.events.get(sessionId)
     if (!list) this.events.set(sessionId, (list = []))

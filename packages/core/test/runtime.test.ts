@@ -319,6 +319,7 @@ describe('multi-instance', () => {
 
   it('releases ownership when idle and re-acquires on the next command', async () => {
     const { runtime, fake } = setup({ idleReleaseMs: 50 })
+    fake.onSend = (sid) => fake.emit(sid, { kind: 'event', event: { type: 'turn.completed', data: { stopReason: 'end_turn' } } })
     const session = await runtime.createSession({ provider: 'fake', config: {} })
     await session.send('x')
     await waitFor(() => runtime.ownedSessions.length === 0)

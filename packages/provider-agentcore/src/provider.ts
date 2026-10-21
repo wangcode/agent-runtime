@@ -6,10 +6,12 @@ import {
   type ContentBlock,
   type Logger,
   type ProviderAdapter,
+  type ProviderCapabilities,
   type ProviderContext,
   type ProviderOutput,
   type ToolResult,
   type TranscriptStore,
+  CapabilityError,
   backoff,
   deferred,
   errorMessage,
@@ -51,6 +53,12 @@ export interface AgentCoreOptions {
   maxConnectionMs?: number
   /** How long commands wait for a live connection and an ack. Default 30s. */
   commandTimeoutMs?: number
+  /**
+   * Allow approvals to change tool input (`resolveApproval(id, { behavior: 'allow', updatedInput })`).
+   * The Claude Agent SDK supports it, but it is off by default: enabling it means your approval UI
+   * or policy takes responsibility for the modified input. Default false.
+   */
+  allowUpdatedInput?: boolean
   /** Optionally stop the microVM on terminate (e.g. call StopRuntimeSession). */
   stopRuntimeSession?: (runtimeSessionId: string) => Promise<void>
   reconnect?: { baseMs?: number; maxMs?: number }
@@ -71,6 +79,7 @@ interface Connection {
  */
 export class AgentCoreProvider implements ProviderAdapter<AgentCoreSessionConfig> {
   readonly name = 'agentcore'
+  readonly capabilities: ProviderCapabilities
   private readonly connections = new Map<string, Connection>()
   private readonly waiters = new Map<string, Array<() => void>>()
   private readonly logger: Logger
@@ -78,6 +87,7 @@ export class AgentCoreProvider implements ProviderAdapter<AgentCoreSessionConfig
   constructor(private readonly opts: AgentCoreOptions) {
     if (!opts.endpoint && !opts.connectWebSocket) throw new Error('AgentCoreProvider needs `endpoint` or `connectWebSocket`')
     this.logger = opts.logger ?? noopLogger
+    this.capabilities = { approvalUpdatedInput: opts.allowUpdatedInput === true, thinkingContent: 'full', turnCost: true }
   }
 
   async createSession(input: { sessionId: string }) {
@@ -132,6 +142,9 @@ export class AgentCoreProvider implements ProviderAdapter<AgentCoreSessionConfig
   }
 
   async submitApproval(ctx: ProviderContext<AgentCoreSessionConfig>, requestId: string, decision: ApprovalDecision) {
+    if (decision.updatedInput && !this.capabilities.approvalUpdatedInput) {
+      throw new CapabilityError('Changing tool input on approval is disabled; set allowUpdatedInput to enable it', 'approvalUpdatedInput')
+    }
     await this.command(ctx, { type: 'approval_decision', id: newId(), requestId, decision })
   }
 
@@ -262,6 +275,7 @@ export class AgentCoreProvider implements ProviderAdapter<AgentCoreSessionConfig
       ...(cursor ? { bootId: cursor.bootId, afterSeq: cursor.seq } : {}),
       config: ctx.config ?? {},
       tools: ctx.tools,
+      features: { approvalUpdatedInput: this.capabilities.approvalUpdatedInput },
     })
   }
 

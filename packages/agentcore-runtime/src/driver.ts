@@ -15,6 +15,8 @@ export interface DriverSession {
   readonly config: unknown
   /** Custom tools whose handlers live on the caller side. */
   readonly tools: ToolDefinition[]
+  /** Optional behaviour the caller enabled (e.g. approvals that change tool input). */
+  readonly features: { approvalUpdatedInput: boolean }
   /** Emit a unified event. Delta types are sent live only; everything else is logged for replay. */
   emit(event: ProviderEvent): void
   /** Ask the caller to run a custom tool. Waits across client reconnects. */

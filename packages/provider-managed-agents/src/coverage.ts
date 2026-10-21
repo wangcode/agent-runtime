@@ -60,7 +60,7 @@ export const MA_EVENT_COVERAGE = {
   'session.status_rescheduled': 'custom',
   'session.error': 'mapped', // -> session.error
   'session.updated': 'custom',
-  'session.usage': 'custom',
+  'session.usage': 'mapped', // cumulative cost -> per-turn costUsd
 
   // Multi-agent threads.
   'session.thread_created': 'custom',
@@ -71,7 +71,7 @@ export const MA_EVENT_COVERAGE = {
 
   // Spans.
   'span.model_request_start': 'custom',
-  'span.model_request_end': 'mapped', // -> usage
+  'span.model_request_end': 'mapped', // -> per-turn usage on turn.completed
   'span.outcome_evaluation_start': 'custom',
   'span.outcome_evaluation_ongoing': 'custom',
   'span.outcome_evaluation_end': 'custom',

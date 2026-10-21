@@ -49,7 +49,8 @@ export type ApprovalPolicyResult =
   | 'allow'
   | 'deny'
   | 'ask'
-  | { decision: 'allow' | 'deny'; message?: string }
+  | { decision: 'allow'; message?: string; updatedInput?: Record<string, unknown> }
+  | { decision: 'deny'; message?: string }
   | { decision: 'ask'; timeoutMs?: number }
 
 /** Decides tool permissions without a human. Return `'ask'` to wait for `resolveApproval()`. */

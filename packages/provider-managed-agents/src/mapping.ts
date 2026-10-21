@@ -4,13 +4,31 @@ import { MA_DELTA_TYPES, MA_PERMISSIONS, MA_STOP_REASONS, type MAEvent, maEventH
 export type { MAEvent }
 
 export interface MappingState {
-  /** Delta stream kind per event id, from `event_start`. */
+  /** Delta stream kind per previewed event id, from `event_start`. */
   deltaKinds: Map<string, 'text' | 'thinking'>
+  /** Block message ids (`<eventId>:<index>`) whose `message.start` was already emitted. */
+  startedBlocks: Set<string>
   /** Thinking text accumulated from deltas (agent.thinking events carry no content). */
   thinking: Map<string, string>
+  /** Last cumulative `session.usage` list cost seen, in USD cents; turned into per-request cost deltas. */
+  lastCostCents: number
 }
 
-export const newMappingState = (): MappingState => ({ deltaKinds: new Map(), thinking: new Map() })
+export const newMappingState = (init: { lastCostCents?: number } = {}): MappingState => ({
+  deltaKinds: new Map(),
+  startedBlocks: new Set(),
+  thinking: new Map(),
+  lastCostCents: init.lastCostCents ?? 0,
+})
+
+export interface MapOptions {
+  includeRaw: boolean
+  /** Emit `message.start` / `text.delta` / `thinking.delta`. Thinking text is assembled either way. Default true. */
+  forwardDeltas?: boolean
+}
+
+/** Message id of one content block; deltas and the final `message.completed` share it (docs/behavior-spec.md). */
+export const blockMessageId = (eventId: string, index: number): string => `${eventId}:${index}`
 
 /**
  * Map one Managed Agents event to runtime outputs. Pure apart from `state`.
@@ -18,11 +36,15 @@ export const newMappingState = (): MappingState => ({ deltaKinds: new Map(), thi
  * What happens to each event type is declared in `MA_EVENT_COVERAGE` (coverage.ts); this function
  * only implements the `mapped` ones. Unknown types become `provider.custom`, never dropped.
  */
-export function mapEvent(ev: MAEvent, state: MappingState, opts: { includeRaw: boolean }): ProviderOutput[] {
+export function mapEvent(ev: MAEvent, state: MappingState, opts: MapOptions): ProviderOutput[] {
   const raw = opts.includeRaw ? ev : undefined
-  const sourceId = 'id' in ev ? (ev.id as string) : undefined
-  const event = (e: Record<string, unknown>): ProviderOutput =>
-    ({ kind: 'event', event: { ...e, ...(raw !== undefined ? { raw } : {}), ...(sourceId ? { sourceId } : {}) } }) as ProviderOutput
+  const id = 'id' in ev ? (ev.id as string) : undefined
+  const threadId = 'session_thread_id' in ev && ev.session_thread_id ? ev.session_thread_id : undefined
+  const event = (e: Record<string, unknown>, sourceId = id): ProviderOutput =>
+    ({
+      kind: 'event',
+      event: { ...e, ...(raw !== undefined ? { raw } : {}), ...(sourceId ? { sourceId } : {}), ...(threadId ? { threadId } : {}) },
+    }) as ProviderOutput
 
   const custom = () => [event({ type: 'provider.custom', data: { name: ev.type, payload: ev } })]
   const handling = maEventHandling(ev.type)
@@ -31,31 +53,45 @@ export function mapEvent(ev: MAEvent, state: MappingState, opts: { includeRaw: b
 
   switch (ev.type) {
     case 'event_start': {
-      const kind = (MA_DELTA_TYPES as Record<string, 'text' | 'thinking'>)[ev.event.type] ?? 'text'
-      state.deltaKinds.set(ev.event.id, kind)
-      return [{ kind: 'event', event: { type: 'message.start', data: { messageId: ev.event.id, kind } } }]
+      // Only remember the kind; message.start is emitted per block on its first delta.
+      state.deltaKinds.set(ev.event.id, (MA_DELTA_TYPES as Record<string, 'text' | 'thinking'>)[ev.event.type] ?? 'text')
+      return []
     }
     case 'event_delta': {
       const text = ev.delta.content?.text ?? ''
-      if (state.deltaKinds.get(ev.event_id) === 'thinking') {
-        state.thinking.set(ev.event_id, (state.thinking.get(ev.event_id) ?? '') + text)
-        return [{ kind: 'event', event: { type: 'thinking.delta', data: { messageId: ev.event_id, text } } }]
+      const kind = state.deltaKinds.get(ev.event_id) ?? 'text'
+      const index = ev.delta.index ?? 0
+      const messageId = blockMessageId(ev.event_id, index)
+      if (kind === 'thinking') state.thinking.set(ev.event_id, (state.thinking.get(ev.event_id) ?? '') + text)
+      if (opts.forwardDeltas === false) return []
+      const out: ProviderOutput[] = []
+      if (!state.startedBlocks.has(messageId)) {
+        state.startedBlocks.add(messageId)
+        out.push({ kind: 'event', event: { type: 'message.start', data: { messageId, kind } } })
       }
-      return [
-        {
-          kind: 'event',
-          event: { type: 'text.delta', data: { messageId: ev.event_id, text, ...(ev.delta.index !== undefined ? { index: ev.delta.index } : {}) } },
-        },
-      ]
+      out.push(
+        kind === 'thinking'
+          ? { kind: 'event', event: { type: 'thinking.delta', data: { messageId, text } } }
+          : { kind: 'event', event: { type: 'text.delta', data: { messageId, text, index } } },
+      )
+      return out
     }
-    case 'agent.message':
-      state.deltaKinds.delete(ev.id)
-      return [event({ type: 'message.completed', data: { messageId: ev.id, content: ev.content as ContentBlock[] } })]
+    case 'agent.message': {
+      forgetBlocks(state, ev.id)
+      // One message.completed per content block, like every provider (docs/behavior-spec.md).
+      return ev.content.map((block, index) =>
+        event({ type: 'message.completed', data: { messageId: blockMessageId(ev.id, index), content: [block as ContentBlock] } }, blockMessageId(ev.id, index)),
+      )
+    }
     case 'agent.thinking': {
-      const thinking = state.thinking.get(ev.id)
-      state.thinking.delete(ev.id)
-      state.deltaKinds.delete(ev.id)
-      return [event({ type: 'message.completed', data: { messageId: ev.id, content: thinking ? [{ type: 'thinking', thinking }] : [] } })]
+      const thinking = state.thinking.get(ev.id) ?? ''
+      forgetBlocks(state, ev.id)
+      return [
+        event(
+          { type: 'message.completed', data: { messageId: blockMessageId(ev.id, 0), content: [{ type: 'thinking', thinking }] } },
+          blockMessageId(ev.id, 0),
+        ),
+      ]
     }
     case 'agent.tool_use':
     case 'agent.mcp_tool_use': {
@@ -99,10 +135,8 @@ export function mapEvent(ev: MAEvent, state: MappingState, opts: { includeRaw: b
     case 'session.status_idle': {
       if (ev.stop_reason.type === 'requires_action') return [event({ type: 'session.status', data: { status: 'requires_action' } })]
       const stopReason: StopReason = (MA_STOP_REASONS as Record<string, StopReason>)[ev.stop_reason.type] ?? ev.stop_reason.type
-      return [
-        event({ type: 'session.status', data: { status: 'idle', reason: ev.stop_reason.type } }),
-        { kind: 'event', event: { type: 'turn.completed', data: { stopReason }, ...(sourceId ? { sourceId: `${sourceId}:turn` } : {}) } },
-      ]
+      // The runtime puts `session.status: idle` in front of turn.completed itself.
+      return [{ kind: 'event', event: { type: 'turn.completed', data: { stopReason }, ...(id ? { sourceId: id } : {}), ...(raw !== undefined ? { raw } : {}) } }]
     }
     case 'session.status_terminated':
     case 'session.deleted':
@@ -119,21 +153,37 @@ export function mapEvent(ev: MAEvent, state: MappingState, opts: { includeRaw: b
     case 'span.model_request_end': {
       const u = ev.model_usage
       return [
-        event({
-          type: 'usage',
-          data: {
+        {
+          kind: 'usage',
+          usage: {
             inputTokens: u.input_tokens,
             outputTokens: u.output_tokens,
             cacheReadInputTokens: u.cache_read_input_tokens,
             cacheCreationInputTokens: u.cache_creation_input_tokens,
           },
-        }),
+        },
       ]
+    }
+    case 'session.usage': {
+      // Cumulative list cost in minor units; report the increase since the last snapshot.
+      const cost = ev.usage.list_cost
+      if (!cost || cost.currency !== 'USD') return []
+      const cents = Number(cost.amount)
+      if (!Number.isFinite(cents) || cents <= state.lastCostCents) return []
+      const delta = cents - state.lastCostCents
+      state.lastCostCents = cents
+      return [{ kind: 'usage', usage: { costUsd: delta / 100 } }]
     }
     default:
       // Declared `mapped` but not implemented above: keep it rather than lose it (the coverage test catches this).
       return custom()
   }
+}
+
+function forgetBlocks(state: MappingState, eventId: string) {
+  state.deltaKinds.delete(eventId)
+  state.thinking.delete(eventId)
+  for (const key of state.startedBlocks) if (key.startsWith(`${eventId}:`)) state.startedBlocks.delete(key)
 }
 
 /** Convert runtime content blocks to Managed Agents user message content. */

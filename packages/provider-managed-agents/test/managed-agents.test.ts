@@ -71,27 +71,50 @@ afterEach(async () => {
 describe('event mapping', () => {
   const map = (e: Record<string, unknown>, state = newMappingState()) => mapEvent(e as never, state, { includeRaw: false })
 
-  it('maps deltas and messages', () => {
+  it('maps deltas and messages per content block, with matching ids', () => {
     const state = newMappingState()
-    expect(map({ type: 'event_start', event: { id: 'm1', type: 'agent.message' } }, state)).toEqual([
-      { kind: 'event', event: { type: 'message.start', data: { messageId: 'm1', kind: 'text' } } },
+    expect(map({ type: 'event_start', event: { id: 'm1', type: 'agent.message' } }, state)).toEqual([])
+    const delta = (index: number, text: string) => ({ type: 'event_delta', event_id: 'm1', delta: { type: 'content_delta', content: { type: 'text', text }, index } })
+    expect(map(delta(0, 'Hi'), state)).toEqual([
+      { kind: 'event', event: { type: 'message.start', data: { messageId: 'm1:0', kind: 'text' } } },
+      { kind: 'event', event: { type: 'text.delta', data: { messageId: 'm1:0', text: 'Hi', index: 0 } } },
     ])
-    expect(map({ type: 'event_delta', event_id: 'm1', delta: { type: 'content_delta', content: { type: 'text', text: 'Hi' }, index: 0 } }, state)).toEqual([
-      { kind: 'event', event: { type: 'text.delta', data: { messageId: 'm1', text: 'Hi', index: 0 } } },
+    expect(map(delta(0, '!'), state)).toEqual([{ kind: 'event', event: { type: 'text.delta', data: { messageId: 'm1:0', text: '!', index: 0 } } }])
+    expect(map(delta(1, 'Bye'), state)[0]).toEqual({ kind: 'event', event: { type: 'message.start', data: { messageId: 'm1:1', kind: 'text' } } })
+    expect(map({ id: 'm1', type: 'agent.message', content: [{ type: 'text', text: 'Hi!' }, { type: 'text', text: 'Bye' }], processed_at: 'x' }, state)).toEqual([
+      { kind: 'event', event: { type: 'message.completed', data: { messageId: 'm1:0', content: [{ type: 'text', text: 'Hi!' }] }, sourceId: 'm1:0' } },
+      { kind: 'event', event: { type: 'message.completed', data: { messageId: 'm1:1', content: [{ type: 'text', text: 'Bye' }] }, sourceId: 'm1:1' } },
     ])
-    expect(map({ id: 'm1', type: 'agent.message', content: [{ type: 'text', text: 'Hi' }], processed_at: 'x' }, state)).toEqual([
-      { kind: 'event', event: { type: 'message.completed', data: { messageId: 'm1', content: [{ type: 'text', text: 'Hi' }] }, sourceId: 'm1' } },
-    ])
+  })
+
+  it('suppresses deltas when asked, but still assembles thinking', () => {
+    const state = newMappingState()
+    const opts = { includeRaw: false, forwardDeltas: false }
+    mapEvent({ type: 'event_start', event: { id: 't1', type: 'agent.thinking' } } as never, state, opts)
+    expect(mapEvent({ type: 'event_delta', event_id: 't1', delta: { type: 'content_delta', content: { type: 'text', text: 'deep' } } } as never, state, opts)).toEqual([])
+    expect(mapEvent({ id: 't1', type: 'agent.thinking', processed_at: 'x' } as never, state, opts)[0]).toMatchObject({
+      event: { type: 'message.completed', data: { messageId: 't1:0', content: [{ type: 'thinking', thinking: 'deep' }] } },
+    })
+  })
+
+  it('turns cumulative session cost into per-request cost deltas', () => {
+    const state = newMappingState({ lastCostCents: 100 })
+    const usage = (amount: string, currency = 'USD') => map({ id: 'u', type: 'session.usage', usage: { list_cost: { amount, currency } } }, state)
+    expect(usage('150')).toEqual([{ kind: 'usage', usage: { costUsd: 0.5 } }])
+    expect(usage('150')).toEqual([])
+    expect(usage('120')).toEqual([])
+    expect(usage('900', 'EUR')).toEqual([])
+    expect(usage('175')).toEqual([{ kind: 'usage', usage: { costUsd: 0.25 } }])
   })
 
   it('accumulates thinking deltas into the completed thinking event', () => {
     const state = newMappingState()
     map({ type: 'event_start', event: { id: 't1', type: 'agent.thinking' } }, state)
-    expect(map({ type: 'event_delta', event_id: 't1', delta: { type: 'content_delta', content: { type: 'text', text: 'hmm' } } }, state)[0]).toMatchObject({
+    expect(map({ type: 'event_delta', event_id: 't1', delta: { type: 'content_delta', content: { type: 'text', text: 'hmm' } } }, state)[1]).toMatchObject({
       event: { type: 'thinking.delta', data: { text: 'hmm' } },
     })
     expect(map({ id: 't1', type: 'agent.thinking', processed_at: 'x' }, state)[0]).toMatchObject({
-      event: { type: 'message.completed', data: { content: [{ type: 'thinking', thinking: 'hmm' }] } },
+      event: { type: 'message.completed', data: { messageId: 't1:0', content: [{ type: 'thinking', thinking: 'hmm' }] } },
     })
   })
 
@@ -113,15 +136,16 @@ describe('event mapping', () => {
     expect(map({ id: 'i', type: 'session.status_idle', stop_reason: { type: 'requires_action', event_ids: ['x'] }, processed_at: 'x' })).toEqual([
       { kind: 'event', event: { type: 'session.status', data: { status: 'requires_action' }, sourceId: 'i' } },
     ])
-    expect(map({ id: 'i', type: 'session.status_idle', stop_reason: { type: 'retries_exhausted' }, processed_at: 'x' })[1]).toMatchObject({
-      event: { type: 'turn.completed', data: { stopReason: 'error' }, sourceId: 'i:turn' },
-    })
+    // The runtime inserts `session.status: idle` before turn.completed itself.
+    expect(map({ id: 'i', type: 'session.status_idle', stop_reason: { type: 'retries_exhausted' }, processed_at: 'x' })).toEqual([
+      { kind: 'event', event: { type: 'turn.completed', data: { stopReason: 'error' }, sourceId: 'i' } },
+    ])
     expect(map({ id: 'e', type: 'session.error', error: { type: 'model_overloaded_error', message: 'busy', retry_status: { type: 'retrying' } } })[0]).toMatchObject({
       event: { type: 'session.error', data: { message: 'busy', code: 'model_overloaded_error', retryable: true } },
     })
     expect(
       map({ id: 'u', type: 'span.model_request_end', model_usage: { input_tokens: 1, output_tokens: 2, cache_read_input_tokens: 3, cache_creation_input_tokens: 4 } })[0],
-    ).toMatchObject({ event: { type: 'usage', data: { inputTokens: 1, outputTokens: 2, cacheReadInputTokens: 3, cacheCreationInputTokens: 4 } } })
+    ).toEqual({ kind: 'usage', usage: { inputTokens: 1, outputTokens: 2, cacheReadInputTokens: 3, cacheCreationInputTokens: 4 } })
     expect(map({ id: 'u', type: 'user.message', content: [] })).toEqual([])
     expect(map({ id: 'w', type: 'workflow_run.created' })[0]).toMatchObject({ event: { type: 'provider.custom', data: { name: 'workflow_run.created' } } })
   })
@@ -176,8 +200,8 @@ describe('ManagedAgentsProvider', () => {
     const msg = ev('agent.message', { content: [{ type: 'text', text: 'yo' }] })
     sessions.push(msg)
     const next = await take(iter, 2)
-    expect(next[0]).toMatchObject({ kind: 'event', event: { type: 'message.completed', sourceId: msg.id } })
-    expect(next[1]).toEqual({ kind: 'cursor', cursor: { lastEventId: msg.id, processedAt: msg.processed_at } })
+    expect(next[0]).toMatchObject({ kind: 'event', event: { type: 'message.completed', sourceId: `${msg.id}:0` } })
+    expect(next[1]).toEqual({ kind: 'cursor', cursor: { lastEventId: msg.id, processedAt: msg.processed_at, costCents: 0 } })
     abort.abort()
   })
 
@@ -190,11 +214,24 @@ describe('ManagedAgentsProvider', () => {
     await take(iter, 1) // ready
     expect(sessions.listCalls[0]).toEqual({ order: 'asc', 'created_at[gte]': '2026-01-01T00:00:09.000Z' })
     sessions.streams[0]?.fail(new Error('socket hang up'))
-    const missed = ev('agent.message', { content: [] })
+    const missed = ev('agent.message', { content: [{ type: 'text', text: 'missed' }], processed_at: '2026-01-01T00:01:00.000Z' })
     sessions.history.push(missed)
     const out = await take(iter, 3)
     expect(out.map((o) => o.kind)).toEqual(['event', 'cursor', 'ready'])
     expect(sessions.streams).toHaveLength(2)
+    abort.abort()
+  })
+
+  it('does not count usage of events an earlier connection already handled', async () => {
+    const sessions = new MockSessions()
+    const old = ev('span.model_request_end', { model_usage: { input_tokens: 5, output_tokens: 5, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } })
+    const fresh = ev('span.model_request_end', { model_usage: { input_tokens: 7, output_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } })
+    sessions.history.push(old, fresh)
+    const provider = new ManagedAgentsProvider({ client: mockClient(sessions) })
+    const abort = new AbortController()
+    const iter = provider.connect(ctx(abort.signal, { lastEventId: old.id, processedAt: old.processed_at, costCents: 0 }))[Symbol.asyncIterator]()
+    const out = await take(iter, 4)
+    expect(out.filter((o) => o.kind === 'usage')).toEqual([{ kind: 'usage', usage: { inputTokens: 7, outputTokens: 1, cacheReadInputTokens: 0, cacheCreationInputTokens: 0 } }])
     abort.abort()
   })
 
@@ -215,6 +252,8 @@ describe('ManagedAgentsProvider', () => {
     await provider.submitToolResult(c, 'ctu_1', { content: [{ type: 'text', text: 'r' }], isError: true })
     await provider.submitApproval(c, 'tu_1', { behavior: 'deny', message: 'nope' })
     await provider.submitApproval(c, 'tu_2', { behavior: 'allow', message: 'ignored' })
+    await expect(provider.submitApproval(c, 'tu_3', { behavior: 'allow', updatedInput: { x: 1 } })).rejects.toThrow(/cannot change tool input/)
+    expect(provider.capabilities).toEqual({ approvalUpdatedInput: false, thinkingContent: 'best_effort', turnCost: true })
     await provider.terminate(c)
     expect(sessions.sent.map((s) => s.events[0])).toEqual([
       { type: 'user.message', content: [{ type: 'text', text: 'hi' }] },

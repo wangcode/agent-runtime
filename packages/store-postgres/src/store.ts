@@ -83,6 +83,7 @@ const toEvent = (r: any): PersistedEvent =>
     data: r.data,
     ...(r.raw !== null ? { raw: r.raw } : {}),
     ...(r.provider ? { provider: r.provider } : {}),
+    ...(r.thread_id ? { threadId: r.thread_id } : {}),
   }) as PersistedEvent
 
 const toCommand = (r: any): CommandRecord => ({
@@ -204,9 +205,18 @@ export class PgStore implements Store {
         [sessionId],
       )
       const { rows } = await client.query(
-        `INSERT INTO ${this.s}.events (session_id, seq, type, data, raw, provider, source_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-        [sessionId, seqRows[0]?.last_seq, event.type, json(event.data), json(event.raw), event.provider ?? null, event.sourceId ?? null],
+        `INSERT INTO ${this.s}.events (session_id, seq, type, data, raw, provider, source_id, thread_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+        [
+          sessionId,
+          seqRows[0]?.last_seq,
+          event.type,
+          json(event.data),
+          json(event.raw),
+          event.provider ?? null,
+          event.sourceId ?? null,
+          event.threadId ?? null,
+        ],
       )
       await client.query('COMMIT')
       return toEvent(rows[0])

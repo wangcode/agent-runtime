@@ -6,9 +6,11 @@ import {
   type ContentBlock,
   type Logger,
   type ProviderAdapter,
+  type ProviderCapabilities,
   type ProviderContext,
   type ProviderOutput,
   type ToolResult,
+  CapabilityError,
   backoff,
   errorMessage,
   noopLogger,
@@ -27,11 +29,16 @@ export interface ManagedAgentsSessionConfig {
 export interface ManagedAgentsCursor {
   lastEventId: string
   processedAt: string
+  /** Last cumulative list cost seen (USD cents), so per-turn cost survives reconnects and takeovers. */
+  costCents?: number
 }
 
 export interface ManagedAgentsOptions {
   client: Anthropic
-  /** Stream token deltas for agent messages and thinking. Default true. */
+  /**
+   * Emit live token deltas (`message.start`, `text.delta`, `thinking.delta`). Default true. Deltas
+   * are always requested from Managed Agents, because thinking text is only available through them.
+   */
   deltas?: boolean
   /** Attach the original event to persisted events. Default true. */
   includeRaw?: boolean
@@ -70,6 +77,11 @@ class RecentIds {
  */
 export class ManagedAgentsProvider implements ProviderAdapter<ManagedAgentsSessionConfig> {
   readonly name = 'managed-agents'
+  /**
+   * - Approvals cannot change tool input: `user.tool_confirmation` only allows or denies.
+   * - Thinking text exists only in live deltas, so it can be partial after a reconnect.
+   */
+  readonly capabilities: ProviderCapabilities = { approvalUpdatedInput: false, thinkingContent: 'best_effort', turnCost: true }
   private readonly client: Anthropic
   private readonly opts: Required<Omit<ManagedAgentsOptions, 'client' | 'reconnect' | 'logger'>> & {
     reconnect: { baseMs: number; maxMs: number }
@@ -107,13 +119,16 @@ export class ManagedAgentsProvider implements ProviderAdapter<ManagedAgentsSessi
     const sessions = this.client.beta.sessions
 
     while (!signal.aborted) {
-      const state = newMappingState()
+      const state = newMappingState({ lastCostCents: cursor?.costCents ?? 0 })
+      // Events at or before this point were already handled by an earlier connection (or owner).
+      const resumeFrom = cursor
+      const alreadyHandled = (ev: MAEvent) =>
+        !!resumeFrom &&
+        'processed_at' in ev &&
+        !!ev.processed_at &&
+        ((ev.processed_at as string) < resumeFrom.processedAt || ('id' in ev && ev.id === resumeFrom.lastEventId))
       try {
-        const stream = await sessions.events.stream(
-          ctx.providerSessionId,
-          this.opts.deltas ? { event_deltas: ['agent.message', 'agent.thinking'] } : {},
-          { signal },
-        )
+        const stream = await sessions.events.stream(ctx.providerSessionId, { event_deltas: ['agent.message', 'agent.thinking'] }, { signal })
 
         const handle = function* (this: ManagedAgentsProvider, ev: MAEvent): Generator<ProviderOutput> {
           const id = 'id' in ev ? (ev.id as string) : undefined
@@ -121,9 +136,14 @@ export class ManagedAgentsProvider implements ProviderAdapter<ManagedAgentsSessi
             if (seen.has(id)) return
             seen.add(id)
           }
-          yield* mapEvent(ev, state, { includeRaw: this.opts.includeRaw })
-          if (id && 'processed_at' in ev && ev.processed_at) {
-            cursor = { lastEventId: id, processedAt: ev.processed_at as string }
+          const replayed = alreadyHandled(ev)
+          for (const out of mapEvent(ev, state, { includeRaw: this.opts.includeRaw, forwardDeltas: this.opts.deltas })) {
+            // Persisted events and requests are deduplicated downstream; usage is not, so never count it twice.
+            if (replayed && out.kind === 'usage') continue
+            yield out
+          }
+          if (id && 'processed_at' in ev && ev.processed_at && (!cursor || (ev.processed_at as string) >= cursor.processedAt)) {
+            cursor = { lastEventId: id, processedAt: ev.processed_at as string, costCents: state.lastCostCents }
             yield { kind: 'cursor', cursor }
           }
         }.bind(this)
@@ -187,6 +207,7 @@ export class ManagedAgentsProvider implements ProviderAdapter<ManagedAgentsSessi
   }
 
   async submitApproval(ctx: ProviderContext<ManagedAgentsSessionConfig>, requestId: string, decision: ApprovalDecision) {
+    if (decision.updatedInput) throw new CapabilityError('Managed Agents cannot change tool input on approval', 'approvalUpdatedInput')
     await this.client.beta.sessions.events.send(ctx.providerSessionId, {
       events: [
         {

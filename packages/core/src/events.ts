@@ -46,8 +46,8 @@ export interface EventPayloads {
     by: 'user' | 'policy' | 'timeout' | 'system'
     message?: string
   }
+  /** Always immediately preceded by `session.status: idle`. `usage` is the total for this turn. */
   'turn.completed': { stopReason: StopReason; usage?: Usage }
-  usage: Usage
   'provider.custom': { name: string; payload: unknown }
 }
 
@@ -65,6 +65,8 @@ export type ProviderEvent<T extends EventType = EventType> = {
     data: EventPayloads[K]
     /** Original provider payload, kept for debugging and provider-specific consumers. */
     raw?: unknown
+    /** Sub-agent / thread that produced the event; absent for the main agent. */
+    threadId?: string
     /**
      * Stable provider-side identity. Events whose `sourceId` was already persisted for the
      * session are dropped, which makes replays after reconnect/takeover exactly-once.
@@ -85,6 +87,8 @@ export type RuntimeEvent<T extends EventType = EventType> = {
     type: K
     data: EventPayloads[K]
     provider?: string
+    /** Sub-agent / thread that produced the event; absent for the main agent. */
+    threadId?: string
     raw?: unknown
   }
 }[T]

@@ -1,5 +1,5 @@
 import type { ContentBlock, PersistedEvent, RuntimeEvent } from './events.js'
-import type { ApprovalDecision, ProviderAdapter, ToolDefinition } from './provider.js'
+import { type ApprovalDecision, CapabilityError, type ProviderAdapter, type ProviderCapabilities, type ToolDefinition } from './provider.js'
 import type { ActionRecord, Bus, CommandKind, SessionRecord, Store } from './store.js'
 import { topics } from './store.js'
 import { type ApprovalPolicy, type ToolRegistration, toolDefinitions } from './tools.js'
@@ -155,6 +155,13 @@ export class Runtime {
     return new Session(this, id)
   }
 
+  /** What the provider registered under `providerKey` supports beyond the common behaviour. */
+  capabilities(providerKey: string): ProviderCapabilities {
+    const adapter = this.internals.providers[providerKey]
+    if (!adapter) throw new Error(`Unknown provider "${providerKey}"`)
+    return { ...adapter.capabilities }
+  }
+
   /** Works on any instance, regardless of which one owns the session. */
   async getSession(id: string): Promise<Session | null> {
     const record = await this.internals.store.getSession(id)
@@ -307,8 +314,20 @@ export class Session {
     return this.runtime._dispatch(this.id, 'interrupt', {})
   }
 
-  resolveApproval(approvalId: string, decision: 'allow' | 'deny' | ApprovalDecision, message?: string): Promise<void> {
+  /** What this session's provider supports beyond the common behaviour (see `ProviderCapabilities`). */
+  async capabilities(): Promise<ProviderCapabilities> {
+    return this.runtime.capabilities((await this.info()).provider)
+  }
+
+  /**
+   * Answer an approval. `updatedInput` (approve with modified tool input) throws `CapabilityError`
+   * unless `capabilities().approvalUpdatedInput` is true.
+   */
+  async resolveApproval(approvalId: string, decision: 'allow' | 'deny' | ApprovalDecision, message?: string): Promise<void> {
     const d: ApprovalDecision = typeof decision === 'string' ? { behavior: decision, ...(message ? { message } : {}) } : decision
+    if (d.updatedInput && !(await this.capabilities()).approvalUpdatedInput) {
+      throw new CapabilityError("This session's provider does not support changing tool input on approval", 'approvalUpdatedInput')
+    }
     return this.runtime._dispatch(this.id, 'resolve_approval', { approvalId, decision: d })
   }
 

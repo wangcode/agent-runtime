@@ -317,8 +317,8 @@ describe('Claude Agent SDK driver', () => {
     expect(events.map((e) => e.type)).toEqual([
       'session.created',
       'user.message',
-      'provider.custom', // system.init (emitted as soon as the query starts)
-      'session.status', // running
+      'session.status', // running: emitted by the runtime right after user.message, for every provider
+      'provider.custom', // system/init
       'message.completed',
       'tool.call', // custom lookup
       'tool.result', // from the runtime's handler

@@ -49,7 +49,16 @@ export class SdkEventMapper {
     this.onBusy(status === 'running' || status === 'requires_action')
   }
 
+  /** Emit with the sub-agent attribution of the message being handled. */
+  private out(event: ProviderEvent) {
+    this.emit(this.threadId ? ({ ...event, threadId: this.threadId } as ProviderEvent) : event)
+  }
+
+  private threadId: string | undefined
+
   handle(msg: SdkMessageLike) {
+    // Messages produced by a subagent carry the id of the Task tool call that started it.
+    this.threadId = typeof msg.parent_tool_use_id === 'string' && msg.parent_tool_use_id ? msg.parent_tool_use_id : undefined
     const key = sdkMessageKey(msg)
     let handling = sdkMessageHandling(key)
     // A result subtype only a newer SDK knows still ends the turn.
@@ -67,7 +76,7 @@ export class SdkEventMapper {
           return this.onResult(msg)
       }
     }
-    this.emit({ type: 'provider.custom', data: { name: key, payload: msg }, ...(msg.uuid ? { sourceId: msg.uuid } : {}) })
+    this.out({ type: 'provider.custom', data: { name: key, payload: msg }, ...(msg.uuid ? { sourceId: msg.uuid } : {}) })
   }
 
   private ensureRunning() {
@@ -85,13 +94,13 @@ export class SdkEventMapper {
     const messageId = `${this.currentMessageId ?? 'msg'}:${ev.index ?? 0}`
     if (ev.type === 'content_block_start') {
       const kind = ev.content_block?.type
-      if (kind === 'text' || kind === 'thinking') this.emit({ type: 'message.start', data: { messageId, kind } })
+      if (kind === 'text' || kind === 'thinking') this.out({ type: 'message.start', data: { messageId, kind } })
     } else if (ev.type === 'content_block_delta' && ev.delta) {
       const deltaKind = (SDK_DELTAS as Record<string, string>)[ev.delta.type] ?? 'ignored'
       if (deltaKind === 'text' && ev.delta.text) {
-        this.emit({ type: 'text.delta', data: { messageId, text: ev.delta.text, index: ev.index ?? 0 } })
+        this.out({ type: 'text.delta', data: { messageId, text: ev.delta.text, index: ev.index ?? 0 } })
       } else if (deltaKind === 'thinking' && ev.delta.thinking) {
-        this.emit({ type: 'thinking.delta', data: { messageId, text: ev.delta.thinking } })
+        this.out({ type: 'thinking.delta', data: { messageId, text: ev.delta.thinking } })
       }
     }
   }
@@ -110,7 +119,7 @@ export class SdkEventMapper {
         const custom = fullName.startsWith(this.opts.customToolPrefix)
         const kind: ToolKind = custom ? 'custom' : fullName.startsWith('mcp__') || block.type === 'mcp_tool_use' ? 'mcp' : 'builtin'
         const mcpServer = kind === 'mcp' ? ((block.server_name as string | undefined) ?? fullName.split('__')[1]) : undefined
-        this.emit({
+        this.out({
           type: 'tool.call',
           data: {
             toolUseId: block.id as string,
@@ -124,7 +133,7 @@ export class SdkEventMapper {
         })
       } else {
         // text, thinking, server tool results, redacted thinking, … and block types we don't know yet.
-        this.emit({ type: 'message.completed', data: { messageId: `${apiId}:${index}`, content: [block as ContentBlock] }, raw: msg, sourceId })
+        this.out({ type: 'message.completed', data: { messageId: `${apiId}:${index}`, content: [block as ContentBlock] }, raw: msg, sourceId })
       }
     }
     // Free counters of older messages; the SDK emits one message's blocks contiguously.
@@ -146,7 +155,7 @@ export class SdkEventMapper {
       }
       const raw = block.content
       const blocks: ContentBlock[] = typeof raw === 'string' ? [{ type: 'text', text: raw }] : Array.isArray(raw) ? (raw as ContentBlock[]) : []
-      this.emit({
+      this.out({
         type: 'tool.result',
         data: { toolUseId, content: blocks, ...(block.is_error ? { isError: true } : {}) },
         sourceId: `${msg.uuid ?? toolUseId}:${i}`,
@@ -158,7 +167,7 @@ export class SdkEventMapper {
     const id = msg.uuid ?? `${Date.now()}`
     if (msg.is_error && msg.subtype !== 'success') {
       const message = msg.errors?.join('\n') || msg.subtype || 'error'
-      if (!this.interrupted) this.emit({ type: 'session.error', data: { message, code: msg.subtype }, sourceId: `${id}:error` })
+      if (!this.interrupted) this.out({ type: 'session.error', data: { message, code: msg.subtype }, sourceId: `${id}:error` })
     }
     const stopReason: StopReason = this.interrupted
       ? 'interrupted'
@@ -173,6 +182,6 @@ export class SdkEventMapper {
       ...(msg.total_cost_usd !== undefined ? { costUsd: msg.total_cost_usd } : {}),
     }
     this.setStatus('idle')
-    this.emit({ type: 'turn.completed', data: { stopReason, usage }, raw: msg, sourceId: id })
+    this.out({ type: 'turn.completed', data: { stopReason, usage }, raw: msg, sourceId: id })
   }
 }

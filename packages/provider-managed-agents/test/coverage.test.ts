@@ -5,9 +5,15 @@ type MappedType = { [K in MAEventType]: (typeof MA_EVENT_COVERAGE)[K] extends 'm
 
 const base = { id: 'sevt_1', processed_at: '2026-01-01T00:00:00Z' }
 
-/** One minimal event per `mapped` type; the type forces a fixture for every newly mapped type. */
-const MAPPED_FIXTURES: Record<MappedType, Record<string, unknown>> = {
-  event_start: { type: 'event_start', event: { id: 'm', type: 'agent.message' } },
+/**
+ * One minimal event (or short event sequence, for types that only record state) per `mapped`
+ * type; the type forces a fixture for every newly mapped type.
+ */
+const MAPPED_FIXTURES: Record<MappedType, Record<string, unknown> | Array<Record<string, unknown>>> = {
+  event_start: [
+    { type: 'event_start', event: { id: 'm', type: 'agent.thinking' } },
+    { type: 'event_delta', event_id: 'm', delta: { type: 'content_delta', content: { type: 'text', text: 'x' } } },
+  ],
   event_delta: { type: 'event_delta', event_id: 'm', delta: { type: 'content_delta', content: { type: 'text', text: 'x' } } },
   'agent.message': { ...base, type: 'agent.message', content: [{ type: 'text', text: 'x' }, { type: 'redacted' }] },
   'agent.thinking': { ...base, type: 'agent.thinking' },
@@ -21,6 +27,7 @@ const MAPPED_FIXTURES: Record<MappedType, Record<string, unknown>> = {
   'session.status_terminated': { ...base, type: 'session.status_terminated' },
   'session.deleted': { ...base, type: 'session.deleted' },
   'session.error': { ...base, type: 'session.error', error: { type: 'unknown_error', message: 'x' } },
+  'session.usage': { ...base, type: 'session.usage', usage: { list_cost: { amount: '125', currency: 'USD' } } },
   'span.model_request_end': {
     ...base,
     type: 'span.model_request_end',
@@ -30,16 +37,20 @@ const MAPPED_FIXTURES: Record<MappedType, Record<string, unknown>> = {
   },
 }
 
-const run = (ev: Record<string, unknown>) => mapEvent(ev as never, newMappingState(), { includeRaw: false })
+const run = (ev: Record<string, unknown> | Array<Record<string, unknown>>) => {
+  const state = newMappingState()
+  const events = Array.isArray(ev) ? ev : [ev]
+  return events.map((e) => mapEvent(e as never, state, { includeRaw: false })).at(-1) ?? []
+}
 const eventTypes = (ev: Record<string, unknown>) => run(ev).flatMap((o) => (o.kind === 'event' ? [o.event.type] : []))
 
 describe('Managed Agents coverage table', () => {
   const entries = Object.entries(MA_EVENT_COVERAGE) as Array<[MAEventType, Handling]>
 
-  it.each(entries.filter(([, h]) => h === 'mapped'))('%s is mapped to unified events', (type) => {
-    const types = eventTypes(MAPPED_FIXTURES[type as MappedType])
-    expect(types.length).toBeGreaterThan(0)
-    expect(types).not.toContain('provider.custom')
+  it.each(entries.filter(([, h]) => h === 'mapped'))('%s is mapped to unified events or usage', (type) => {
+    const out = run(MAPPED_FIXTURES[type as MappedType])
+    expect(out.length).toBeGreaterThan(0)
+    expect(out.flatMap((o) => (o.kind === 'event' ? [o.event.type] : []))).not.toContain('provider.custom')
   })
 
   it.each(entries.filter(([, h]) => h === 'custom'))('%s is kept as provider.custom', (type) => {
