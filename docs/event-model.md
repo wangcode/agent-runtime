@@ -15,6 +15,7 @@ interface RuntimeEvent {
   type: EventType
   data: …             // depends on `type`, see below
   provider?: string   // the provider key the session uses
+  threadId?: string   // set on events from a sub-agent / secondary thread
   raw?: unknown       // the original provider payload, when available
 }
 ```
@@ -56,7 +57,7 @@ block. Clients that don't need typing can pass `includeDeltas: false` to `sessio
 | `message.start` *(live)* | `{ messageId, kind: 'text' \| 'thinking' }` | The agent starts writing a block |
 | `text.delta` *(live)* | `{ messageId, text, index? }` | A chunk of text |
 | `thinking.delta` *(live)* | `{ messageId, text }` | A chunk of reasoning |
-| `message.completed` | `{ messageId, content: ContentBlock[] }` | Final content of a message or block; same `messageId` as its deltas |
+| `message.completed` | `{ messageId, content: [ContentBlock] }` | Final content of **one** block; same `messageId` as its `message.start` and deltas |
 
 ### Tools and approvals
 
@@ -71,9 +72,11 @@ block. Clients that don't need typing can pass `includeDeltas: false` to `sessio
 
 | Type | `data` | When |
 | --- | --- | --- |
-| `turn.completed` | `{ stopReason, usage? }` | The agent finished responding. `stopReason` is `end_turn`, `interrupted`, `error`, `budget`, `refusal`, `max_turns`, or a provider-specific string |
-| `usage` | `{ inputTokens?, outputTokens?, cacheReadInputTokens?, cacheCreationInputTokens?, costUsd? }` | Token usage reports |
+| `turn.completed` | `{ stopReason, usage? }` | The agent finished responding; always right after `session.status: idle`. `stopReason` is `end_turn`, `interrupted`, `error`, `budget`, `refusal`, `max_turns`, or a provider-specific string. `usage` is the turn total: `{ inputTokens?, outputTokens?, cacheReadInputTokens?, cacheCreationInputTokens?, costUsd? }` |
 | `provider.custom` | `{ name, payload }` | Provider events with no unified equivalent; `name` is the provider's event type |
+
+Ordering and meaning (one block per `message.completed`, `tool.call` before its result, one
+`tool.result` per call, …) are defined in the [behaviour spec](behavior-spec.md).
 
 ### Content blocks
 
@@ -88,15 +91,15 @@ seq  type                 notes
  1   session.created
  2   user.message         "find order 42"
  3   session.status       running
- –   message.start        live
+ –   message.start        live, messageId "msg_1:0"
  –   text.delta           live, "Let me "
  –   text.delta           live, "check."
- 4   message.completed    "Let me check."
+ 4   message.completed    messageId "msg_1:0", "Let me check."
  5   tool.call            lookup_order {id: "42"}  kind: custom
  6   tool.result          your handler's output
- 7   message.completed    "Order 42 shipped yesterday."
+ 7   message.completed    messageId "msg_2:0", "Order 42 shipped yesterday."
  8   session.status       idle
- 9   turn.completed       end_turn
+ 9   turn.completed       end_turn, usage { inputTokens, outputTokens, costUsd }
 ```
 
 ## SSE format
@@ -126,7 +129,7 @@ data: {"id":"7","sessionId":"…","seq":7,"ts":"…","type":"message.completed",
 | `approval.*` | `evaluated_permission: "ask"`, answered with `user.tool_confirmation` | `canUseTool` callback |
 | `session.status` | `session.status_running` / `_idle` / `_terminated` | derived from turns and pending approvals |
 | `turn.completed` | `session.status_idle` stop reason | `result` message |
-| `usage` | `span.model_request_end` | included in `turn.completed` |
+| `turn.completed.usage` | sum of `span.model_request_end` + cost from `session.usage` | `result` usage and cost |
 | `session.error` | `session.error` | `result` errors, SDK exceptions |
 | `provider.custom` | any other event (see coverage) | most `system/*` messages, `rate_limit_event`, … (see coverage) |
 

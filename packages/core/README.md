@@ -55,6 +55,7 @@ for await (const event of session.events()) {
 | `pollIntervalMs` | 2 s | Safety-net polling interval |
 | `commandTimeoutMs` | 60 s | How long commands wait to be executed |
 | `reconnect` | `{ baseMs: 500, maxMs: 30000 }` | Provider reconnect backoff |
+| `toolCallWaitMs` | 2 s | How long a tool result or approval event waits for its `tool.call` when a provider reports them out of order |
 | `logger` | silent | Any `{ debug, info, warn, error }` object, such as `console` |
 
 ### `Runtime`
@@ -63,6 +64,7 @@ for await (const event of session.events()) {
 | --- | --- |
 | `createSession({ provider, config, metadata?, id? })` | Creates the session at the provider and returns a `Session` |
 | `getSession(id)` | Returns a `Session` handle, or `null`; works on any instance |
+| `capabilities(providerKey)` | What that provider supports beyond the [behaviour spec](../../docs/behavior-spec.md) |
 | `close()` | Stops background work and releases owned sessions; call on shutdown |
 | `instanceId` | This process's id |
 | `ownedSessions` | Ids of sessions this instance currently owns |
@@ -75,14 +77,19 @@ All methods work from any instance.
 | --- | --- |
 | `send(input)` | Send a user message (string, content blocks, or `{ content }`). Resolves once the provider accepted it |
 | `interrupt()` | Stop the current turn |
-| `resolveApproval(approvalId, decision, message?)` | Answer an approval: `'allow'`, `'deny'`, or `{ behavior, message?, updatedInput? }` |
+| `resolveApproval(approvalId, decision, message?)` | Answer an approval: `'allow'`, `'deny'`, or `{ behavior, message?, updatedInput? }`. `updatedInput` throws `CapabilityError` unless the provider supports it and it is enabled |
+| `capabilities()` | The session provider's capabilities (`approvalUpdatedInput`, `thinkingContent`, `turnCost`) |
 | `pendingApprovals()` | Approvals still waiting for a human |
 | `terminate()` | End the session (and the provider session) |
 | `info()` | The stored session record: status, provider ids, owner, metadata |
 | `events({ after?, includeDeltas?, follow?, signal? })` | AsyncIterable of events: replays after `after`, then follows live events. Ends when you `break`, `signal` aborts, or the session terminates |
 
 Commands throw `CommandError` when the provider rejects them, or when they were not executed within
-`commandTimeoutMs`. In that case they stay queued and run later.
+`commandTimeoutMs`. In that case they stay queued and run later. Using a feature the provider lacks
+throws `CapabilityError`.
+
+Every provider behaves the same way: same turn boundaries, ordering, interrupt and usage semantics.
+See the [behaviour spec](../../docs/behavior-spec.md).
 
 ### Helpers
 

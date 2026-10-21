@@ -56,6 +56,7 @@ agentCore({ connectWebSocket: () => new WebSocket('ws://localhost:8080/ws') })
 | `connectWebSocket` | — | Custom socket factory, for local containers and tests |
 | `maxConnectionMs` | 55 min | Reconnect before AgentCore's 60-minute WebSocket limit |
 | `commandTimeoutMs` | 30 s | How long a command waits for a live connection and an acknowledgement |
+| `allowUpdatedInput` | `false` | Let approvals change the tool's input (`resolveApproval(id, { behavior: 'allow', updatedInput })`). Off by default; enable it only if your approval UI or policy takes responsibility for modified input |
 | `stopRuntimeSession` | — | Optional hook called on `terminate()`, for example to call the `StopRuntimeSession` API |
 | `reconnect` | `{ baseMs: 500, maxMs: 30000 }` | Reconnect backoff |
 | `logger` | silent | `{ debug, info, warn, error }` |
@@ -76,6 +77,10 @@ runtime.
   container. If no connection is open, they wait for one (up to `commandTimeoutMs`).
 - **Transcript requests.** The container's transcript reads and writes are served from the
   runtime's `Store`.
+
+## Capabilities
+
+`approvalUpdatedInput`: the value of `allowUpdatedInput`. `thinkingContent`: `full`. `turnCost`: `true`. See the [behaviour spec](../../docs/behavior-spec.md#capabilities).
 
 ## Exports
 

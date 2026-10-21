@@ -15,8 +15,10 @@ care of the plumbing that every such backend ends up writing:
   `Last-Event-ID`.
 - **Recovering from crashes.** Session ownership is a lease. If the owning process dies, another
   instance takes over and finishes the work that was in flight.
-- **Unifying provider events.** Each provider's event format is mapped onto one event model. The
-  original payload stays available as `raw`.
+- **Unifying provider behaviour.** Each provider's events *and* behaviour are mapped onto one
+  [behaviour spec](docs/behavior-spec.md), verified by a conformance suite. Real differences are
+  declared as capabilities instead of being silently ignored. The original payload stays available
+  as `raw`.
 
 Phase 1 supports **Claude Managed Agents** and **the Claude Agent SDK hosted on Amazon Bedrock
 AgentCore**.
@@ -40,6 +42,7 @@ for await (const event of session.events({ after: lastEventId })) {
 | --- | --- |
 | [Getting started](docs/getting-started.md) | Install, wire up a runtime, and serve SSE to a browser |
 | [Architecture](docs/architecture.md) | Sessions, workers, leases, commands, and how the pieces fit together |
+| [Behaviour spec](docs/behavior-spec.md) | The provider-independent contract: turns, messages, tools, approvals, capabilities |
 | [Event model](docs/event-model.md) | Every event type, persisted vs. live events, and the SSE format |
 | [Event coverage](docs/event-coverage.md) | What happens to every provider event, and how SDK upgrades are kept safe |
 | [Tools and approvals](docs/tools-and-approvals.md) | Server-side custom tools, approval policies, human approvals, and timeouts |
@@ -58,6 +61,7 @@ for await (const event of session.events({ after: lastEventId })) {
 | [`@agent-runtime/provider-agentcore`](packages/provider-agentcore/README.md) | Provider for agents running on Bedrock AgentCore (caller side) |
 | [`@agent-runtime/agentcore-runtime`](packages/agentcore-runtime/README.md) | Server that runs inside the AgentCore container, plus the Claude Agent SDK driver |
 | [`@agent-runtime/protocol`](packages/protocol/README.md) | WebSocket protocol shared by the two AgentCore packages |
+| [`@agent-runtime/conformance`](packages/conformance/README.md) | *(private)* Scenarios every provider must pass to behave identically |
 
 ### Examples
 

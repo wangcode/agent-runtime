@@ -94,7 +94,6 @@ With no policy configured, everything is `'ask'`.
 ```ts
 await session.resolveApproval(approvalId, 'allow')
 await session.resolveApproval(approvalId, 'deny', 'Please use the staging database')
-await session.resolveApproval(approvalId, { behavior: 'allow', updatedInput: { path: '/safe/dir' } })
 ```
 
 - `approvalId` comes from the `approval.requested` event, or from `session.pendingApprovals()`
@@ -102,8 +101,39 @@ await session.resolveApproval(approvalId, { behavior: 'allow', updatedInput: { p
 - Any instance can answer, even one that doesn't own the session.
 - Exactly one decision wins. A second answer, or an answer after the timeout, is rejected with a
   `CommandError` ("already resolved").
-- `updatedInput` lets the reviewer change the tool's input. The Claude Agent SDK supports it;
-  Managed Agents ignores it.
+- A denied call still gets a `tool.result`: an error result whose text is your message. Every
+  `tool.call` ends with exactly one `tool.result`, whichever provider is used.
+
+### Approving with modified input (`updatedInput`)
+
+Besides allow and deny, a reviewer can **allow the call with different input**. For example, they
+might narrow `rm -rf ./build` to `rm -rf ./build/tmp`, edit an email before it is sent, or let a
+policy force `--dry-run` onto every `git push`:
+
+```ts
+await session.resolveApproval(approvalId, { behavior: 'allow', updatedInput: { command: 'rm -rf ./build/tmp' } })
+
+// or in a policy
+policy: ({ name, input }) =>
+  name === 'Bash' && String(input.command).startsWith('git push')
+    ? { decision: 'allow', updatedInput: { ...input, command: `${input.command} --dry-run` } }
+    : 'ask'
+```
+
+This is **off by default** and must be enabled per provider. If a reviewer believes they changed
+the input but the original input runs, that is a safety problem, so the runtime never silently
+ignores it:
+
+| Provider | Support |
+| --- | --- |
+| Claude Managed Agents | Not supported; the API can only allow or deny |
+| Claude Agent SDK (AgentCore) | Supported once you enable it with `agentCore({ allowUpdatedInput: true, … })` |
+
+- Check `(await session.capabilities()).approvalUpdatedInput` to decide whether your UI offers an
+  "edit and approve" option.
+- `resolveApproval` with `updatedInput` throws `CapabilityError` when the capability is off.
+- A policy that returns `updatedInput` when the capability is off is logged as an error, and the
+  call goes to a human (`'ask'`) instead.
 
 ### Timeouts
 

@@ -87,21 +87,22 @@ and `@anthropic-ai/sdk` 0.137.
 | --- | --- | --- |
 | `event_start` | mapped | `message.start` |
 | `event_delta` | mapped | `text.delta` / `thinking.delta` |
-| `agent.message` | mapped | `message.completed` (all blocks, including `redacted`) |
+| `agent.message` | mapped | one `message.completed` per content block (including `redacted`), id `<event id>:<index>` |
 | `agent.thinking` | mapped | `message.completed` with a thinking block assembled from deltas |
 | `agent.tool_use` | mapped | `tool.call` (`builtin`); plus an approval request when `evaluated_permission` is `ask` |
 | `agent.mcp_tool_use` | mapped | `tool.call` (`mcp`); plus an approval request when `ask` |
 | `agent.custom_tool_use` | mapped | `tool.call` (`custom`) and a tool request to your handler |
 | `agent.tool_result`, `agent.mcp_tool_result` | mapped | `tool.result` |
 | `session.status_running` | mapped | `session.status: running` |
-| `session.status_idle` | mapped | `session.status` (+ `turn.completed` unless `requires_action`) |
+| `session.status_idle` | mapped | `turn.completed` (the runtime puts `session.status: idle` before it); `requires_action` → `session.status: requires_action` |
 | `session.status_terminated`, `session.deleted` | mapped | `session.status: terminated` |
 | `session.error` | mapped | `session.error` |
-| `span.model_request_end` | mapped | `usage` |
+| `span.model_request_end` | mapped | token counts summed into `turn.completed.usage` |
+| `session.usage` | mapped | cumulative cost → per-turn `turn.completed.usage.costUsd` |
 | `user.message`, `user.interrupt`, `user.custom_tool_result`, `user.tool_confirmation`, `user.tool_result` | ignored | echoes; the runtime records `user.message`, `tool.result`, and `approval.resolved` itself |
 | `user.define_outcome`, `system.message` | custom | |
 | `agent.thread_context_compacted`, `agent.thread_message_received`, `agent.thread_message_sent` | custom | |
-| `session.status_rescheduled`, `session.updated`, `session.usage` | custom | |
+| `session.status_rescheduled`, `session.updated` | custom | |
 | `session.thread_created`, `session.thread_status_*` | custom | |
 | `span.model_request_start`, `span.outcome_evaluation_*` | custom | |
 | `workflow_run.*` | custom | |
@@ -160,7 +161,7 @@ their final content arrives in the assistant message.
 These are preserved, as `provider.custom` or `raw`, but not yet modelled as first-class unified
 events:
 
-- **Thread / subagent attribution.** Managed Agents `session_thread_id` and the Agent SDK's
-  `parent_tool_use_id` have no field on unified events yet.
+- **Thread lifecycle.** Events are attributed with `threadId`, but thread lifecycle (Managed Agents
+  `session.thread_*`, Agent SDK `system/task_*`) is only available as `provider.custom`.
 - **Compaction, retries, rate limits, and permission denials** are available only as
   `provider.custom`.

@@ -77,8 +77,14 @@ Notable details:
 - **Permissions.** `agent.tool_use` and `agent.mcp_tool_use` with
   `evaluated_permission: "ask"` become approval requests. Calls evaluated as `allow` or `deny` are
   not shown to your policy.
+- **Blocks.** An `agent.message` with several content blocks becomes one `message.completed` per
+  block, with ids `<event id>:<block index>` shared with the deltas.
+- **Usage.** `span.model_request_end` token counts and `session.usage` cost are summed into
+  `turn.completed.usage`.
 - **Stop reasons.** `requires_action` becomes `session.status: requires_action`. Other idle stop
-  reasons become `session.status: idle` followed by `turn.completed`:
+  reasons end the turn: the runtime emits `session.status: idle` followed by `turn.completed`.
+  After an interrupt the stop reason is always `interrupted` (Managed Agents itself reports
+  `end_turn`).
 
   | Managed Agents stop reason | `turn.completed.stopReason` |
   | --- | --- |
@@ -87,12 +93,20 @@ Notable details:
   | `budget_reached` | `budget` |
   | `refusal` | `refusal` |
 
+## Capabilities
+
+| Capability | Value | Why |
+| --- | --- | --- |
+| `approvalUpdatedInput` | `false` | `user.tool_confirmation` can only allow or deny; changing the input is not possible |
+| `thinkingContent` | `best_effort` | `agent.thinking` events carry no text. The provider always subscribes to thinking deltas and assembles them, but deltas are not replayed, so thinking can be partial after a reconnect |
+| `turnCost` | `true` | `session.usage` reports a cumulative list cost; the provider turns it into a per-turn `costUsd` (kept in the cursor, so it survives reconnects and takeovers) |
+
 ## Options
 
 | Option | Default | Description |
 | --- | --- | --- |
 | `client` | *required* | An `Anthropic` client instance |
-| `deltas` | `true` | Stream token deltas |
+| `deltas` | `true` | Emit live token deltas. Deltas are always requested from Managed Agents, because thinking text only exists there |
 | `includeRaw` | `true` | Attach the original event as `raw` |
 | `onTerminate` | `'archive'` | What `session.terminate()` does: `'archive'`, `'delete'`, or `'none'` |
 | `catchUpMarginMs` | `60000` | How far before the cursor the history listing starts |

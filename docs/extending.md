@@ -54,6 +54,20 @@ export class MyProvider implements ProviderAdapter<MyConfig> {
 
 ### Rules
 
+- **Capabilities.** Declare `capabilities: { approvalUpdatedInput, thinkingContent, turnCost }`
+  truthfully. Throw `CapabilityError` from `submitApproval` if you ever receive `updatedInput`
+  you can't honour.
+- **Usage.** Report usage as `{ kind: 'usage', usage }` outputs (the runtime sums them per turn),
+  or put the turn total on `turn.completed.usage`.
+- **Turn end.** End a turn by emitting `turn.completed`. The runtime adds `session.status: idle`
+  in front of it and rewrites the stop reason after an interrupt.
+- **Blocks.** Emit one `message.completed` per content block with id `<message id>:<block index>`,
+  matching the deltas.
+- **Thread attribution.** Set `threadId` on events from sub-agents or threads.
+- **Conformance.** A provider is integrated only when it ships a harness that passes the
+  [conformance suite](../packages/conformance/README.md), meaning the same unified events as
+  every other provider for every scenario.
+
 - **Coverage table.** Declare a coverage table typed with `satisfies Record<SdkEventType, 'mapped' | 'custom' | 'ignored'>`
   over your provider SDK's event type union, and drive the mapper from it, so SDK upgrades fail the
   build instead of silently dropping events. Unknown types at runtime must become `provider.custom`.
@@ -92,9 +106,9 @@ export const myDriver: AgentDriver = {
         session.setBusy(true)
         session.emit({ type: 'session.status', data: { status: 'running' } })
         void agent.run(content, {
-          onText: (t) => session.emit({ type: 'text.delta', data: { messageId: 'm1', text: t } }),
+          onText: (t) => session.emit({ type: 'text.delta', data: { messageId: 'm1:0', text: t } }),
           onDone: (msg) => {
-            session.emit({ type: 'message.completed', data: { messageId: 'm1', content: msg } })
+            session.emit({ type: 'message.completed', data: { messageId: 'm1:0', content: [msg] } })
             session.emit({ type: 'session.status', data: { status: 'idle' } })
             session.emit({ type: 'turn.completed', data: { stopReason: 'end_turn' } })
             session.setBusy(false)

@@ -50,7 +50,7 @@ API or Console.
 | Option | Default | Description |
 | --- | --- | --- |
 | `client` | *required* | An `Anthropic` client |
-| `deltas` | `true` | Stream token deltas for messages and thinking |
+| `deltas` | `true` | Emit live token deltas. Thinking deltas are always requested, because thinking text only exists in them |
 | `includeRaw` | `true` | Attach the original Managed Agents event as `raw` |
 | `onTerminate` | `'archive'` | What `session.terminate()` does: `'archive'`, `'delete'`, or `'none'` |
 | `catchUpMarginMs` | `60000` | How far before the cursor the history catch-up starts |
@@ -70,6 +70,10 @@ API or Console.
 
 Event mapping, API-call costs, and open design questions are described in
 [docs/managed-agents.md](../../docs/managed-agents.md).
+
+## Capabilities
+
+`approvalUpdatedInput`: `false` (Managed Agents can only allow or deny). `thinkingContent`: `best_effort` (assembled from deltas). `turnCost`: `true`. See the [behaviour spec](../../docs/behavior-spec.md#capabilities).
 
 ## Exports
 
