@@ -1,4 +1,5 @@
 import type { ContentBlock, ProviderEvent, SessionStatus, StopReason, ToolKind } from '@agent-runtime/core'
+import { SDK_CONTENT_BLOCKS, SDK_DELTAS, SDK_RESULT_STOP_REASONS, SDK_STREAM_EVENTS, sdkMessageHandling, sdkMessageKey } from './coverage.js'
 
 /** Loose view of SDKMessage: only the fields we read, so SDK minor versions don't break us. */
 export interface SdkMessageLike {
@@ -15,25 +16,17 @@ export interface SdkMessageLike {
   [key: string]: unknown
 }
 
-const STOP_REASONS: Record<string, StopReason> = {
-  success: 'end_turn',
-  error_max_turns: 'max_turns',
-  error_max_budget_usd: 'budget',
-  error_during_execution: 'error',
-  error_max_structured_output_retries: 'error',
-}
-
-const FORWARDED_SYSTEM = new Set(['init', 'compact_boundary', 'api_retry'])
-
 export interface MapperOptions {
   /** Prefix of the in-process MCP server exposing caller-side tools, e.g. `mcp__runtime__`. */
   customToolPrefix: string
-  /** Forward every unmapped SDK message as `provider.custom`. Default false (only init/compaction/retries). */
+  /** Also forward messages the coverage table marks `ignored` as `provider.custom`. Default false. */
   forwardAll?: boolean
 }
 
 /**
- * Turns Claude Agent SDK messages into unified events. Each text/thinking content block becomes
+ * Turns Claude Agent SDK messages into unified events, following the coverage tables in
+ * coverage.ts. Unknown message types become `provider.custom`; unknown content blocks are passed
+ * through in `message.completed`. Each non-tool content block becomes
  * its own `message.completed` with id `<apiMessageId>:<blockIndex>`, matching the ids used by the
  * partial-message deltas, so clients can replace streamed previews with final blocks.
  */
@@ -57,23 +50,24 @@ export class SdkEventMapper {
   }
 
   handle(msg: SdkMessageLike) {
-    switch (msg.type) {
-      case 'stream_event':
-        return this.onStreamEvent(msg)
-      case 'assistant':
-        return this.onAssistant(msg)
-      case 'user':
-        return this.onUser(msg)
-      case 'result':
-        return this.onResult(msg)
-      case 'system':
-        if (this.opts.forwardAll || FORWARDED_SYSTEM.has(msg.subtype ?? '')) {
-          this.emit({ type: 'provider.custom', data: { name: `system.${msg.subtype}`, payload: msg }, ...(msg.uuid ? { sourceId: msg.uuid } : {}) })
-        }
-        return
-      default:
-        if (this.opts.forwardAll) this.emit({ type: 'provider.custom', data: { name: msg.type, payload: msg }, ...(msg.uuid ? { sourceId: msg.uuid } : {}) })
+    const key = sdkMessageKey(msg)
+    let handling = sdkMessageHandling(key)
+    // A result subtype only a newer SDK knows still ends the turn.
+    if (msg.type === 'result') handling = 'mapped'
+    if (handling === 'ignored' && !this.opts.forwardAll) return
+    if (handling === 'mapped') {
+      switch (msg.type) {
+        case 'stream_event':
+          return this.onStreamEvent(msg)
+        case 'assistant':
+          return this.onAssistant(msg)
+        case 'user':
+          return this.onUser(msg)
+        case 'result':
+          return this.onResult(msg)
+      }
     }
+    this.emit({ type: 'provider.custom', data: { name: key, payload: msg }, ...(msg.uuid ? { sourceId: msg.uuid } : {}) })
   }
 
   private ensureRunning() {
@@ -82,7 +76,7 @@ export class SdkEventMapper {
 
   private onStreamEvent(msg: SdkMessageLike) {
     const ev = msg.event
-    if (!ev) return
+    if (!ev || (SDK_STREAM_EVENTS as Record<string, string>)[ev.type] !== 'mapped') return
     this.ensureRunning()
     if (ev.type === 'message_start') {
       this.currentMessageId = ev.message?.id
@@ -92,10 +86,11 @@ export class SdkEventMapper {
     if (ev.type === 'content_block_start') {
       const kind = ev.content_block?.type
       if (kind === 'text' || kind === 'thinking') this.emit({ type: 'message.start', data: { messageId, kind } })
-    } else if (ev.type === 'content_block_delta') {
-      if (ev.delta?.type === 'text_delta' && ev.delta.text) {
+    } else if (ev.type === 'content_block_delta' && ev.delta) {
+      const deltaKind = (SDK_DELTAS as Record<string, string>)[ev.delta.type] ?? 'ignored'
+      if (deltaKind === 'text' && ev.delta.text) {
         this.emit({ type: 'text.delta', data: { messageId, text: ev.delta.text, index: ev.index ?? 0 } })
-      } else if (ev.delta?.type === 'thinking_delta' && ev.delta.thinking) {
+      } else if (deltaKind === 'thinking' && ev.delta.thinking) {
         this.emit({ type: 'thinking.delta', data: { messageId, text: ev.delta.thinking } })
       }
     }
@@ -109,20 +104,12 @@ export class SdkEventMapper {
       const index = this.blockCounters.get(apiId) ?? 0
       this.blockCounters.set(apiId, index + 1)
       const sourceId = `${msg.uuid ?? apiId}:${index}`
-      if (block.type === 'text') {
-        this.emit({ type: 'message.completed', data: { messageId: `${apiId}:${index}`, content: [{ type: 'text', text: block.text as string }] }, raw: msg, sourceId })
-      } else if (block.type === 'thinking') {
-        this.emit({
-          type: 'message.completed',
-          data: { messageId: `${apiId}:${index}`, content: [{ type: 'thinking', thinking: block.thinking as string }] },
-          raw: msg,
-          sourceId,
-        })
-      } else if (block.type === 'tool_use' || block.type === 'server_tool_use' || block.type === 'mcp_tool_use') {
+      const handling = (SDK_CONTENT_BLOCKS as Record<string, 'message' | 'tool_call'>)[block.type as string] ?? 'message'
+      if (handling === 'tool_call') {
         const fullName = block.name as string
         const custom = fullName.startsWith(this.opts.customToolPrefix)
-        const kind: ToolKind = custom ? 'custom' : fullName.startsWith('mcp__') ? 'mcp' : 'builtin'
-        const mcpServer = kind === 'mcp' ? fullName.split('__')[1] : undefined
+        const kind: ToolKind = custom ? 'custom' : fullName.startsWith('mcp__') || block.type === 'mcp_tool_use' ? 'mcp' : 'builtin'
+        const mcpServer = kind === 'mcp' ? ((block.server_name as string | undefined) ?? fullName.split('__')[1]) : undefined
         this.emit({
           type: 'tool.call',
           data: {
@@ -135,6 +122,9 @@ export class SdkEventMapper {
           raw: msg,
           sourceId,
         })
+      } else {
+        // text, thinking, server tool results, redacted thinking, … and block types we don't know yet.
+        this.emit({ type: 'message.completed', data: { messageId: `${apiId}:${index}`, content: [block as ContentBlock] }, raw: msg, sourceId })
       }
     }
     // Free counters of older messages; the SDK emits one message's blocks contiguously.
@@ -170,7 +160,9 @@ export class SdkEventMapper {
       const message = msg.errors?.join('\n') || msg.subtype || 'error'
       if (!this.interrupted) this.emit({ type: 'session.error', data: { message, code: msg.subtype }, sourceId: `${id}:error` })
     }
-    const stopReason = this.interrupted ? 'interrupted' : (STOP_REASONS[msg.subtype ?? ''] ?? msg.subtype ?? 'end_turn')
+    const stopReason: StopReason = this.interrupted
+      ? 'interrupted'
+      : ((SDK_RESULT_STOP_REASONS as Record<string, StopReason>)[msg.subtype ?? ''] ?? msg.subtype ?? 'end_turn')
     this.interrupted = false
     const u = msg.usage ?? {}
     const usage = {

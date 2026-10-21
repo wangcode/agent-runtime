@@ -77,6 +77,7 @@ Event mapping, API-call costs, and open design questions are described in
 | --- | --- |
 | `managedAgents(options)` / `ManagedAgentsProvider` | The provider |
 | `ManagedAgentsSessionConfig`, `ManagedAgentsOptions`, `ManagedAgentsCursor` | Types |
+| `MA_EVENT_COVERAGE`, `MA_STOP_REASONS`, `MA_PERMISSIONS`, `MA_DELTA_TYPES`, `MA_MESSAGE_BLOCKS`, `maEventHandling()` | Coverage tables: how every Managed Agents type is handled; see [Event coverage](../../docs/event-coverage.md) |
 | `mapEvent(event, state, opts)`, `newMappingState()` | The pure event mapper, useful for testing or offline conversion of stored Managed Agents events |
 
 ## Further reading

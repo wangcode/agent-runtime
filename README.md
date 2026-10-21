@@ -41,6 +41,7 @@ for await (const event of session.events({ after: lastEventId })) {
 | [Getting started](docs/getting-started.md) | Install, wire up a runtime, and serve SSE to a browser |
 | [Architecture](docs/architecture.md) | Sessions, workers, leases, commands, and how the pieces fit together |
 | [Event model](docs/event-model.md) | Every event type, persisted vs. live events, and the SSE format |
+| [Event coverage](docs/event-coverage.md) | What happens to every provider event, and how SDK upgrades are kept safe |
 | [Tools and approvals](docs/tools-and-approvals.md) | Server-side custom tools, approval policies, human approvals, and timeouts |
 | [Scaling and failover](docs/scaling-and-failover.md) | Running several instances, Postgres setup, crash recovery, and tuning |
 | [Claude Managed Agents](docs/managed-agents.md) | How the Managed Agents provider connects, maps events, and reconnects |

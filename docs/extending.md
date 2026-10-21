@@ -54,6 +54,11 @@ export class MyProvider implements ProviderAdapter<MyConfig> {
 
 ### Rules
 
+- **Coverage table.** Declare a coverage table typed with `satisfies Record<SdkEventType, 'mapped' | 'custom' | 'ignored'>`
+  over your provider SDK's event type union, and drive the mapper from it, so SDK upgrades fail the
+  build instead of silently dropping events. Unknown types at runtime must become `provider.custom`.
+  See [Event coverage](event-coverage.md).
+
 - **Who records what.** Don't emit `user.message`, or `tool.result` for custom tools: the runtime
   records those itself. Skip the provider's echoes of them.
 - **Stable ids.** Use stable `sourceId`s. Replaying history must produce the same ids.

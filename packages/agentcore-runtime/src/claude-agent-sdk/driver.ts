@@ -35,7 +35,7 @@ export interface ClaudeAgentSdkDriverOptions {
   mcpServerName?: string
   /** Persist the SDK transcript in the caller's Store so a fresh microVM can resume. Default true. */
   persistTranscript?: boolean
-  /** Forward every SDK message type as `provider.custom`. Default false. */
+  /** Also forward SDK messages the coverage table marks `ignored` (hooks, progress ticks, …) as `provider.custom`. Default false. */
   forwardAllMessages?: boolean
   /** Inject the SDK (tests). Defaults to a dynamic import of `@anthropic-ai/claude-agent-sdk`. */
   sdk?: ClaudeAgentSdkModule

@@ -128,4 +128,10 @@ data: {"id":"7","sessionId":"…","seq":7,"ts":"…","type":"message.completed",
 | `turn.completed` | `session.status_idle` stop reason | `result` message |
 | `usage` | `span.model_request_end` | included in `turn.completed` |
 | `session.error` | `session.error` | `result` errors, SDK exceptions |
-| `provider.custom` | any other event | `system` `init`, `compact_boundary`, `api_retry` |
+| `provider.custom` | any other event (see coverage) | most `system/*` messages, `rate_limit_event`, … (see coverage) |
+
+The complete, per-type list, and the mechanism that keeps it complete across SDK upgrades, is in
+[Event coverage](event-coverage.md).
+
+**Frontends must ignore event types they don't recognise.** New unified types may be added in
+minor versions, and `provider.custom` carries whatever a provider adds.

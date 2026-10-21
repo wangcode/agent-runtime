@@ -69,7 +69,7 @@ Returns `{ server, port, bootId, sessions, health(), close() }`.
 | `options` | `{}` | Base SDK `Options`, or `(session) => Options`. The caller's `config.options` is shallow-merged on top |
 | `mcpServerName` | `'runtime'` | Name of the in-process MCP server that exposes caller-side tools (`mcp__runtime__<tool>`) |
 | `persistTranscript` | `true` | Mirror the SDK transcript to the caller's database and resume from it on a fresh microVM |
-| `forwardAllMessages` | `false` | Forward every SDK message as `provider.custom` (default: only `init`, `compact_boundary`, `api_retry`) |
+| `forwardAllMessages` | `false` | Also forward SDK messages the coverage table marks `ignored` (hooks, progress ticks, …) as `provider.custom` |
 | `sdk` | dynamic import | Inject the SDK module, for tests |
 
 What it does:
@@ -83,8 +83,10 @@ What it does:
   policy, and reports `requires_action` while waiting.
 - **Resume.** Uses a stable SDK session id derived from the runtime session id: a new session
   (`sessionId`) the first time, and `resume` once a transcript exists.
-- **Event mapping.** Turns SDK messages into unified events; each text or thinking block becomes
-  one `message.completed`.
+- **Event mapping.** Turns SDK messages into unified events following a coverage table over every
+  SDK message type, content block, and delta. Each non-tool content block becomes one
+  `message.completed`; unknown messages become `provider.custom`, and unknown blocks are passed
+  through.
 
 **Bedrock:** set `CLAUDE_CODE_USE_BEDROCK=1` and `AWS_REGION` in `options.env`. Note that
 `options.env` replaces the subprocess environment, so spread `process.env` into it. The
@@ -103,6 +105,7 @@ server handles everything else. See [Writing a provider or driver](../../docs/ex
 | `startAgentCoreServer`, `AgentCoreServer`, `AgentCoreServerOptions` | The server |
 | `AgentDriver`, `DriverSession`, `DriverHandle`, `RemoteSessionStore` | Driver contract |
 | `ContainerSession` | Per-session state (exported for advanced use and tests) |
+| `…/claude-agent-sdk`: `SDK_MESSAGE_COVERAGE`, `SDK_CONTENT_BLOCKS`, `SDK_STREAM_EVENTS`, `SDK_DELTAS`, `SDK_RESULT_STOP_REASONS` | Coverage tables; see [Event coverage](../../docs/event-coverage.md) |
 | `…/claude-agent-sdk`: `claudeAgentSdkDriver`, `ClaudeAgentSdkDriver`, `SdkEventMapper`, `sdkSessionIdFor`, `jsonSchemaToShape` | Claude Agent SDK driver and helpers |
 
 ## Further reading

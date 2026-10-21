@@ -66,7 +66,9 @@ Echoes of these `user.*` events from the stream are ignored, because the runtime
 
 ## Event mapping
 
-See the [provider mapping table](event-model.md#provider-mapping). Notable details:
+Every Managed Agents event type is listed in the coverage table (`src/coverage.ts`), and an SDK
+upgrade that adds a type fails the build until it is handled; see [Event coverage](event-coverage.md).
+Notable details:
 
 - **Deltas** are requested with `event_deltas: ['agent.message', 'agent.thinking']`. Disable them
   with `deltas: false`.

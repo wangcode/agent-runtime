@@ -106,6 +106,7 @@ AgentCore requires **ARM64** images.
 | Bedrock | Configure through `env` (`CLAUDE_CODE_USE_BEDROCK=1`, `AWS_REGION`, optional `ANTHROPIC_DEFAULT_*_MODEL`) |
 | Resume | The SDK session id is derived from the runtime session id. The transcript is stored through `sessionStore`; if a transcript exists when a new microVM starts, the SDK resumes it |
 | Interrupt | `query.interrupt()`; the turn ends with `stopReason: 'interrupted'` |
+| Event mapping | Driven by a coverage table over every SDK message type, content block, and delta; see [Event coverage](event-coverage.md) |
 
 ## Connection lifecycle
 

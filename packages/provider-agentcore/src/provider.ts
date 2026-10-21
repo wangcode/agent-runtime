@@ -238,6 +238,11 @@ export class AgentCoreProvider implements ProviderAdapter<AgentCoreSessionConfig
         case 'error':
           this.logger.warn('agent runtime reported an error', { sessionId: ctx.sessionId, message: msg.message })
           break
+        default: {
+          // Compile-time: every protocol message must be handled. Runtime: a newer container may send more.
+          const unhandled: never = msg
+          this.logger.warn('unknown message from agent runtime', { sessionId: ctx.sessionId, type: (unhandled as { type?: string }).type })
+        }
       }
     })
 

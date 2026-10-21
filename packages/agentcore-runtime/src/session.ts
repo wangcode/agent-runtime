@@ -112,6 +112,11 @@ export class ContainerSession {
         case 'terminate':
           await this.close()
           break
+        default: {
+          // Compile-time: every client command must be handled. Runtime: reject commands from a newer client.
+          const unhandled: never = cmd
+          throw new Error(`Unsupported command ${(unhandled as { type?: string }).type}`)
+        }
       }
     } catch (err) {
       outcome = { ok: false, error: errorMessage(err) }
