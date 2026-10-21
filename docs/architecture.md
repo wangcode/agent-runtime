@@ -98,6 +98,42 @@ The worker converts every provider output into a unified event (see [Event model
 then follows live notifications. It also polls every `pollIntervalMs` as a safety net. Together
 this gives every subscriber, on any instance, a gap-free, duplicate-free stream.
 
+## Behaviour normalization
+
+Providers report the same things differently. The worker passes every provider output through one
+pipeline before it is stored, so the [behaviour spec](behavior-spec.md) holds no matter which
+adapter produced the event:
+
+| Step | What it does |
+| --- | --- |
+| Live events | Deltas are published on the bus, split into chunks that fit a notification, and never stored |
+| Causal tool order | `tool.result` and `approval.*` events that arrive before their `tool.call` are held until it arrives. They are released after `toolCallWaitMs` (default 2 s) or at the end of the turn |
+| One result per call | `tool.result` is deduplicated per `toolUseId`; denied or cancelled approvals produce an error result |
+| Turn start | On `send()` to an idle session, the worker itself emits `user.message` and `session.status: running` |
+| Status | A `session.status` equal to the current status is dropped |
+| Turn end | Before `turn.completed`, the worker emits `session.status: idle` if needed. After an interrupt it sets `stopReason: 'interrupted'`, and it fills `usage` from the per-request usage the adapter reported during the turn |
+| Store | The event is appended with the next `seq`; an already-stored `sourceId` is dropped (replays) |
+
+Adapters only translate formats; they cannot break these rules.
+
+## The life of a `send()`
+
+```
+instance B (no owner)          Postgres                      instance A (owner)                provider
+  session.send("hi")
+    INSERT command ─────────────▶ commands
+    NOTIFY cmd:<session> ───────────────────────────────────▶ drain commands
+                                                               emit user.message, running ───▶ events (+ NOTIFY)
+                                                               adapter.sendMessage ──────────▶  user message
+                                                               mark command done ────────────▶ commands (+ NOTIFY)
+    ◀── resolves ───────────────────────────────────────────── (B waits for "done")
+                                                               provider events ◀──────────────  stream
+                                                               normalize, store ─────────────▶ events (+ NOTIFY)
+  session.events() on any instance ◀── reads events after its last seq, on every NOTIFY (and by polling)
+```
+
+If no instance owns the session, instance B takes the lease and becomes the owner itself.
+
 ## Actions: tool calls and approvals
 
 Anything the provider is waiting on is an **action** row:
@@ -136,6 +172,7 @@ when AWS replaces the microVM.
 | --- | --- |
 | Persisted events seen by subscribers | Exactly once, in `seq` order, no gaps |
 | Live deltas | Best effort, not replayed |
-| Commands | Executed at least once; each command id runs once per owner |
+| Commands | Executed by the owner, in the order they were queued; queued commands survive an owner crash |
 | Custom tool handlers | At least once (a crash mid-run means a re-run): **make them idempotent** |
 | Tool results and approval decisions sent to the provider | At least once; providers ignore duplicates |
+| Event order within a turn | As defined by the [behaviour spec](behavior-spec.md), for every provider |

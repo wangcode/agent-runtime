@@ -66,6 +66,13 @@ API or Console.
   `user.custom_tool_result`.
 - **Permissions:** tool calls the service evaluates as `ask` go to your approval policy and are
   answered with `user.tool_confirmation`.
+- **Messages:** an `agent.message` with several blocks becomes one `message.completed` per block,
+  with ids shared with the deltas (`<event id>:<block index>`).
+- **Thinking:** assembled from thinking deltas (Managed Agents' `agent.thinking` carries no text),
+  even when `deltas: false`.
+- **Usage:** token counts from `span.model_request_end` and cost from the cumulative
+  `session.usage` are summed per turn into `turn.completed.usage`.
+- **Interrupts:** `user.interrupt`; the runtime reports the turn as `interrupted`.
 - **Deleted sessions:** a 404 from the API marks the session `terminated`.
 
 Event mapping, API-call costs, and open design questions are described in

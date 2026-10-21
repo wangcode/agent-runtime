@@ -1,37 +1,135 @@
 # Getting started
 
-This guide wires `agent-runtime` into a Node.js backend and streams agent events to a browser over
-Server-Sent Events (SSE).
+This guide takes you from nothing to a backend that streams an agent conversation to a browser.
 
-## 1. Install
+- **Part 1** runs without any API keys, using a simulated provider.
+- **Part 2** switches to a real provider and Postgres.
 
-Pick the packages you need:
+Requirements: Node.js 20 or newer.
+
+## Part 1: a working backend in one file
+
+### Install
 
 ```bash
-# always
-pnpm add @agent-runtime/core
-
-# production storage (needed for more than one instance)
-pnpm add @agent-runtime/store-postgres pg
-
-# providers
-pnpm add @agent-runtime/provider-managed-agents @anthropic-ai/sdk
-pnpm add @agent-runtime/provider-agentcore
-
-# optional: RxJS interop
-pnpm add rxjs
+pnpm add @agent-runtime/core express
 ```
 
-Requires Node.js 20 or newer.
+### `server.ts`
 
-## 2. Create a runtime
+```ts
+import express from 'express'
+import { createRuntime, MemoryBus, MemoryStore, toSSE } from '@agent-runtime/core'
+import { FakeProvider } from '@agent-runtime/core/testing'
 
-A **runtime** is the object your backend keeps for its whole lifetime. You give it:
+// A simulated provider: replies "You said: …" to every message.
+const fake = new FakeProvider()
+fake.onSend = (sessionId, content) => {
+  const text = content.map((b) => ('text' in b ? b.text : '')).join('')
+  fake.emit(
+    sessionId,
+    { kind: 'event', event: { type: 'message.completed', data: { messageId: `${Date.now()}:0`, content: [{ type: 'text', text: `You said: ${text}` }] } } },
+    { kind: 'event', event: { type: 'turn.completed', data: { stopReason: 'end_turn' } } },
+  )
+}
 
-- a **store**, where sessions and events are kept;
-- a **bus**, which carries notifications between instances;
-- the **providers** you want to use;
-- optionally, **tools** that run on your server and an **approval policy**.
+const runtime = createRuntime({
+  store: new MemoryStore(), // keeps everything in memory
+  bus: new MemoryBus(),     // notifications inside this process
+  providers: { fake },      // the key ('fake') is what sessions refer to
+})
+
+const app = express()
+app.use(express.json())
+
+// Create a session.
+app.post('/sessions', async (_req, res) => {
+  const session = await runtime.createSession({ provider: 'fake', config: {} })
+  res.status(201).json({ id: session.id })
+})
+
+// Send a message. Resolves once the provider accepted it; the reply arrives as events.
+app.post('/sessions/:id/messages', async (req, res) => {
+  const session = await runtime.getSession(req.params.id)
+  if (!session) return res.status(404).end()
+  await session.send(String(req.body.text))
+  res.status(202).end()
+})
+
+// Stream events as Server-Sent Events, resuming after Last-Event-ID.
+app.get('/sessions/:id/events', async (req, res) => {
+  const session = await runtime.getSession(req.params.id)
+  if (!session) return res.status(404).end()
+  res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' })
+
+  const abort = new AbortController()
+  req.on('close', () => abort.abort()) // the client left; the agent keeps working
+
+  const after = Number(req.header('last-event-id') ?? 0)
+  for await (const event of session.events({ after, signal: abort.signal })) {
+    res.write(toSSE(event))
+  }
+  res.end()
+})
+
+app.listen(3000, () => console.log('http://localhost:3000'))
+```
+
+### Try it
+
+```bash
+npx tsx server.ts
+
+ID=$(curl -s -XPOST localhost:3000/sessions | jq -r .id)
+curl -N localhost:3000/sessions/$ID/events &        # terminal stays open, printing events
+curl -XPOST localhost:3000/sessions/$ID/messages -H 'content-type: application/json' -d '{"text":"hi"}'
+```
+
+You should see:
+
+```
+id: 1
+event: session.created
+data: {"id":"1","sessionId":"…","seq":1,"type":"session.created",…}
+
+id: 2
+event: user.message
+data: {…"data":{"content":[{"type":"text","text":"hi"}]}}
+
+id: 3
+event: session.status
+data: {…"data":{"status":"running"}}
+
+id: 4
+event: message.completed
+data: {…"data":{"messageId":"…:0","content":[{"type":"text","text":"You said: hi"}]}}
+
+id: 5
+event: session.status
+data: {…"data":{"status":"idle"}}
+
+id: 6
+event: turn.completed
+data: {…"data":{"stopReason":"end_turn"}}
+```
+
+Reconnect with `curl -N localhost:3000/sessions/$ID/events -H 'Last-Event-ID: 4'`: you get events 5
+and 6 only. Browsers send this header automatically when an `EventSource` reconnects.
+
+A fuller version of this server, with approvals, interrupts and a slower simulated agent, is in
+[`examples/express-sse`](../examples/express-sse/README.md).
+
+## Part 2: real providers and Postgres
+
+### Install
+
+```bash
+pnpm add @agent-runtime/store-postgres pg
+pnpm add @agent-runtime/provider-managed-agents @anthropic-ai/sdk   # Claude Managed Agents
+pnpm add @agent-runtime/provider-agentcore                          # Claude Agent SDK on AgentCore
+```
+
+### Replace the runtime
 
 ```ts
 import pg from 'pg'
@@ -39,16 +137,39 @@ import Anthropic from '@anthropic-ai/sdk'
 import { createRuntime } from '@agent-runtime/core'
 import { PgBus, PgStore, migrate } from '@agent-runtime/store-postgres'
 import { managedAgents } from '@agent-runtime/provider-managed-agents'
+import { agentCore } from '@agent-runtime/provider-agentcore'
 
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL })
-await migrate(pool) // creates the tables; safe to run on every boot
+await migrate(pool) // creates or upgrades the tables; safe on every boot and on many instances at once
 
 const runtime = createRuntime({
   store: new PgStore({ pool }),
   bus: new PgBus({ pool, listenConfig: { connectionString: process.env.DATABASE_URL } }),
   providers: {
-    ma: managedAgents({ client: new Anthropic() }),
+    ma: managedAgents({ client: new Anthropic() }), // reads ANTHROPIC_API_KEY
+    ac: agentCore({ endpoint: { region: 'us-west-2', runtimeArn: process.env.AGENTCORE_RUNTIME_ARN! } }),
   },
+})
+```
+
+The routes stay the same. Only `createSession` needs a real provider config:
+
+```ts
+// Claude Managed Agents: the agent and environment are created beforehand with the Anthropic API.
+await runtime.createSession({ provider: 'ma', config: { agent: 'agent_…', environmentId: 'env_…' } })
+
+// Claude Agent SDK on AgentCore: config is passed to the container (see docs/agentcore.md).
+await runtime.createSession({ provider: 'ac', config: { options: { model: 'claude-sonnet-5-5' } } })
+```
+
+Provider setup is described in [Claude Managed Agents](managed-agents.md) and
+[Bedrock AgentCore](agentcore.md).
+
+### Add tools and an approval policy
+
+```ts
+const runtime = createRuntime({
+  // … store, bus, providers …
   tools: {
     lookup_order: {
       description: 'Look up an order by id',
@@ -57,87 +178,29 @@ const runtime = createRuntime({
     },
   },
   approvals: {
-    policy: ({ name }) => (name === 'read' ? 'allow' : 'ask'),
+    policy: ({ name }) => (name === 'Read' ? 'allow' : 'ask'), // everything else waits for a human
+    timeoutMs: 10 * 60_000,
   },
 })
 ```
 
-> **Single process, no database?** Use `new MemoryStore()` and `new MemoryBus()` from
-> `@agent-runtime/core`. They are fine for development, tests, and single-instance deployments that
-> can afford to lose history on restart.
+Approvals are answered with `session.resolveApproval(approvalId, 'allow' | 'deny')` from any
+route on any instance. Details: [Tools and approvals](tools-and-approvals.md).
 
-## 3. Create a session and send a message
-
-```ts
-const session = await runtime.createSession({
-  provider: 'ma', // the key you used in `providers`
-  config: { agent: 'agent_123', environmentId: 'env_456' },
-  metadata: { userId: 'u_1' }, // anything you want to keep with the session
-})
-
-await session.send('Where is order 42?')
-```
-
-`send()` resolves once the message has been handed to the provider. It does **not** wait for the
-agent's reply; replies arrive as events.
-
-## 4. Stream events to the browser
-
-Any instance can serve this route, whichever instance is actually talking to the provider:
-
-```ts
-import { toSSE } from '@agent-runtime/core'
-
-app.get('/sessions/:id/events', async (req, res) => {
-  const session = await runtime.getSession(req.params.id)
-  if (!session) return res.status(404).end()
-
-  res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' })
-  const abort = new AbortController()
-  req.on('close', () => abort.abort())
-
-  const after = Number(req.header('last-event-id') ?? 0)
-  for await (const event of session.events({ after, signal: abort.signal })) {
-    res.write(toSSE(event))
-  }
-  res.end()
-})
-```
-
-The browser's `EventSource` sends `Last-Event-ID` automatically when it reconnects, so a dropped
-connection resumes exactly where it stopped: nothing is missed and nothing is repeated. Closing the
-connection only stops delivery; **the agent keeps working**.
-
-## 5. Handle approvals and interrupts
-
-```ts
-app.post('/sessions/:id/approvals/:approvalId', async (req, res) => {
-  const session = await runtime.getSession(req.params.id)
-  await session!.resolveApproval(req.params.approvalId, req.body.decision) // 'allow' | 'deny'
-  res.status(202).end()
-})
-
-app.post('/sessions/:id/interrupt', async (req, res) => {
-  await (await runtime.getSession(req.params.id))!.interrupt()
-  res.status(202).end()
-})
-```
-
-The `approvalId` comes from the `approval.requested` event. `session.pendingApprovals()` lists the
-ones that are still open, which is useful when a page reloads.
-
-## 6. Shut down cleanly
+### Shut down cleanly
 
 ```ts
 process.on('SIGTERM', async () => {
-  await runtime.close() // releases ownership so another instance can take over immediately
+  await runtime.close() // hands sessions to other instances immediately
   process.exit(0)
 })
 ```
 
 ## Next steps
 
-- [Event model](event-model.md): what each event contains.
-- [Tools and approvals](tools-and-approvals.md): writing tool handlers and policies.
-- [Scaling and failover](scaling-and-failover.md): running more than one instance.
-- [`examples/express-sse`](../examples/express-sse/README.md): a complete, runnable version of this guide.
+| To… | Read |
+| --- | --- |
+| Build the UI that consumes these events | [Frontend guide](frontend-guide.md) |
+| Understand every event and field | [Event model](event-model.md) |
+| Run several instances | [Scaling and failover](scaling-and-failover.md) |
+| Configure, monitor and troubleshoot | [Operations](operations.md) |

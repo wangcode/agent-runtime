@@ -38,18 +38,43 @@ for await (const event of session.events({ after: lastEventId })) {
 
 ### Guides
 
+**Start here**
+
 | Guide | What you will learn |
 | --- | --- |
-| [Getting started](docs/getting-started.md) | Install, wire up a runtime, and serve SSE to a browser |
-| [Architecture](docs/architecture.md) | Sessions, workers, leases, commands, and how the pieces fit together |
-| [Behaviour spec](docs/behavior-spec.md) | The provider-independent contract: turns, messages, tools, approvals, capabilities |
-| [Event model](docs/event-model.md) | Every event type, persisted vs. live events, and the SSE format |
-| [Event coverage](docs/event-coverage.md) | What happens to every provider event, and how SDK upgrades are kept safe |
-| [Tools and approvals](docs/tools-and-approvals.md) | Server-side custom tools, approval policies, human approvals, and timeouts |
-| [Scaling and failover](docs/scaling-and-failover.md) | Running several instances, Postgres setup, crash recovery, and tuning |
-| [Claude Managed Agents](docs/managed-agents.md) | How the Managed Agents provider connects, maps events, and reconnects |
-| [Bedrock AgentCore](docs/agentcore.md) | Hosting the Claude Agent SDK on AgentCore: container, protocol, and deployment |
-| [Writing a provider or driver](docs/extending.md) | Adding a new agent backend (Mastra and others) |
+| [Concepts](docs/concepts.md) | The terms used everywhere: runtime, session, turn, owner, command, action, capability |
+| [Getting started](docs/getting-started.md) | A working SSE backend in one file, then real providers and Postgres |
+
+**Building an application**
+
+| Guide | What you will learn |
+| --- | --- |
+| [Frontend guide](docs/frontend-guide.md) | Consuming the event stream in a browser: reducer, rendering, approvals, reconnects |
+| [Event model](docs/event-model.md) | Every event type and field, with examples |
+| [Tools and approvals](docs/tools-and-approvals.md) | Custom tools, approval policies, human approvals, timeouts, `updatedInput` |
+
+**Providers**
+
+| Guide | What you will learn |
+| --- | --- |
+| [Claude Managed Agents](docs/managed-agents.md) | Agent setup, how the provider connects and maps events, capabilities, rate limits |
+| [Bedrock AgentCore](docs/agentcore.md) | Hosting the Claude Agent SDK on AgentCore: container, session config, AWS deployment |
+
+**Running in production**
+
+| Guide | What you will learn |
+| --- | --- |
+| [Scaling and failover](docs/scaling-and-failover.md) | Multiple instances, what happens when one dies, capacity |
+| [Operations](docs/operations.md) | Configuration reference, logging, troubleshooting, maintenance, security |
+
+**How it works and extending it**
+
+| Guide | What you will learn |
+| --- | --- |
+| [Behaviour spec](docs/behavior-spec.md) | The provider-independent contract every provider satisfies |
+| [Architecture](docs/architecture.md) | Workers, leases, commands, normalization, delivery guarantees |
+| [Event coverage](docs/event-coverage.md) | What happens to every provider event type, and how SDK upgrades stay safe |
+| [Writing a provider or driver](docs/extending.md) | Adding a new agent backend, step by step |
 
 ### Packages
 

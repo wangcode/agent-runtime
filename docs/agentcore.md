@@ -61,8 +61,16 @@ const session = await runtime.createSession({
 })
 ```
 
-`config` is sent to the container. For the Claude Agent SDK driver, `config.options` is
-shallow-merged over the driver's base SDK options.
+### Session config
+
+`config` travels to the container as JSON in the WebSocket handshake. For the Claude Agent SDK
+driver, `config.options` is shallow-merged over the driver's base SDK options:
+
+| Put in `config.options` (per session) | Put in the container's base options (per deployment) |
+| --- | --- |
+| `model`, `systemPrompt`, `maxTurns`, `allowedTools`, `permissionMode` and other plain values | anything that is a function or object instance: `hooks`, `mcpServers` with in-process servers, `canUseTool`; plus `env`, `cwd` |
+
+Options that cannot be serialized don't survive the trip, so keep them in the container.
 
 The IAM principal needs `bedrock-agentcore:InvokeAgentRuntimeWithWebSocketStream` on the runtime.
 For runtimes with a JWT authorizer, pass `bearerToken: () => getToken()` instead of credentials.
@@ -110,6 +118,22 @@ AgentCore requires **ARM64** images.
 | Sub-agents | Messages from sub-agents carry `threadId` (the id of the Task tool call that started them) |
 | Event mapping | Driven by a coverage table over every SDK message type, content block, and delta; see [Event coverage](event-coverage.md) |
 
+## Local development
+
+Run the container code on your machine and point the caller at it, with no AWS involved:
+
+```bash
+pnpm --filter @agent-runtime/example-agentcore-container start   # serves :8080
+```
+
+```ts
+import WebSocket from 'ws'
+agentCore({ connectWebSocket: () => new WebSocket('ws://localhost:8080/ws') })
+```
+
+The SDK inside still needs model access. Set AWS credentials with Bedrock access (or remove
+`CLAUDE_CODE_USE_BEDROCK` and set `ANTHROPIC_API_KEY` for local testing).
+
 ## Connection lifecycle
 
 1. **Connect.** The caller opens the WebSocket with the header
@@ -136,9 +160,82 @@ AgentCore requires **ARM64** images.
 | Session idle timeout | 15 minutes by default (configurable 60 s – 8 h) | `/ping` reports busy only while work is in flight |
 | Session max lifetime | 8 hours | Transcript resume on the next microVM |
 
-## Not yet verified on AWS
+## Deploying to AWS
 
-The integration is tested end to end against a local container with a mocked Agent SDK. Before
-production, verify against a real deployment: SigV4 handshake, IAM permissions, Bedrock model
-access, and the transcript resume path. Browser-direct connections (presigned URLs) are not
-implemented.
+### 1. Build and push the image
+
+AgentCore runs **ARM64** images that listen on `0.0.0.0:8080`.
+
+```bash
+docker build --platform linux/arm64 -f examples/agentcore-container/Dockerfile -t agent-runtime-container .
+aws ecr create-repository --repository-name agent-runtime-container
+aws ecr get-login-password | docker login --username AWS --password-stdin <account>.dkr.ecr.<region>.amazonaws.com
+docker tag agent-runtime-container <account>.dkr.ecr.<region>.amazonaws.com/agent-runtime-container:latest
+docker push <account>.dkr.ecr.<region>.amazonaws.com/agent-runtime-container:latest
+```
+
+### 2. Create an execution role for the container
+
+The runtime assumes this role. It needs to pull the image, write logs, and call Bedrock models.
+Trust principal: `bedrock-agentcore.amazonaws.com`.
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    { "Effect": "Allow", "Action": ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"], "Resource": "*" },
+    { "Effect": "Allow", "Action": ["ecr:GetAuthorizationToken", "ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer"], "Resource": "*" },
+    { "Effect": "Allow", "Action": ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"], "Resource": "*" }
+  ]
+}
+```
+
+Narrow `Resource` to your model ARNs, repository and log group in production.
+
+### 3. Create the agent runtime
+
+Create it in the AgentCore console, or with the `CreateAgentRuntime` API, from the image URI and
+the execution role. Note the **runtime ARN**. Set the session idle timeout to suit your traffic:
+the default is 15 minutes.
+
+> The exact console steps and CLI flags change with AgentCore releases; follow the
+> [AgentCore Runtime documentation](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/)
+> for this step.
+
+### 4. Allow your backend to connect
+
+The identity your backend runs as (task role, instance profile, …) needs:
+
+```json
+{
+  "Effect": "Allow",
+  "Action": "bedrock-agentcore:InvokeAgentRuntimeWithWebSocketStream",
+  "Resource": ["arn:aws:bedrock-agentcore:<region>:<account>:runtime/<runtime-id>", "arn:aws:bedrock-agentcore:<region>:<account>:runtime/<runtime-id>/*"]
+}
+```
+
+### 5. Point the provider at it
+
+```ts
+agentCore({ endpoint: { region: '<region>', runtimeArn: '<runtime ARN>' } })
+```
+
+Credentials come from the AWS default provider chain unless you pass `credentials`.
+
+### Verification status
+
+The integration is tested end to end against a local container with a mocked Agent SDK; it has
+not yet run against a real AgentCore deployment. Check these first in a real deployment: the SigV4
+WebSocket handshake, IAM permissions, Bedrock model access, and transcript resume after a
+microVM replacement. Browser-direct connections (presigned URLs) are not implemented.
+
+## Troubleshooting
+
+| Symptom | Check |
+| --- | --- |
+| `agentcore connection failed` with `HTTP 403` | The caller's IAM permission (step 4) and the runtime ARN/region |
+| `HTTP 404` on connect | Runtime ARN, region, `qualifier` |
+| Connects, but the first `send()` times out | Container logs: the driver may fail to start (missing Bedrock access, wrong model id) |
+| Every message starts a fresh conversation | Transcripts are not being stored: check `persistTranscript` and the backend's database |
+| microVM never goes idle (cost) | Something keeps it busy: a pending approval or a custom tool that never returns |
+| Tools/approvals never answered after a long pause | The microVM was replaced: pending requests are cancelled (`approval.resolved` with `by: 'system'`); the user can continue with a new message |

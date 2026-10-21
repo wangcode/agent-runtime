@@ -1,161 +1,249 @@
 # Tools and approvals
 
-The agent keeps working when no browser is connected, so two kinds of interaction have to be
-handled on the server:
+An agent can do two things that need your backend's involvement while a turn is running:
 
-1. **Custom tools.** The agent calls a function that you implement, such as "look up an order".
-2. **Permissions.** The agent wants to do something that needs a yes or no, such as "run this shell
-   command".
+1. **Call a custom tool**: a function you implement, such as "look up an order". The runtime runs
+   your handler and sends the result back.
+2. **Ask for permission**: before running a tool, such as "run this shell command". Your policy
+   decides, or a human does.
+
+Both work whether or not a browser is connected, and on whichever instance owns the session.
 
 ## Custom tools
 
-Register tools once on the runtime. Every provider and every session can use them.
+### Register a tool
+
+Register tools once, on the runtime. Every session and every provider can use them.
 
 ```ts
 createRuntime({
   // …
   tools: {
     lookup_order: {
-      description: 'Look up an order by id',
-      inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+      description: 'Look up an order by id. Returns status and shipping date.',
+      inputSchema: {
+        type: 'object',
+        properties: { id: { type: 'string', description: 'Order id, e.g. "42"' } },
+        required: ['id'],
+      },
       handler: async (input: { id: string }, ctx) => {
         const order = await db.orders.find(input.id, { signal: ctx.signal })
-        return order ? JSON.stringify(order) : { content: [{ type: 'text', text: 'not found' }], isError: true }
+        if (!order) return { content: [{ type: 'text', text: `No order ${input.id}` }], isError: true }
+        return JSON.stringify({ status: order.status, shippedAt: order.shippedAt })
       },
     },
   },
 })
 ```
 
+| Field | Description |
+| --- | --- |
+| key (`lookup_order`) | The tool name the agent uses. Must match the name declared to the provider (see below) |
+| `description` | Shown to the model; say what the tool does and returns |
+| `inputSchema` | JSON Schema of the input, `type: 'object'` |
+| `handler(input, ctx)` | Your code. May be sync or async |
+
+### What happens during a call
+
+```
+agent                     runtime (owner instance)                 your handler
+  │ calls lookup_order ──▶  tool.call event
+  │                         stores the call (pending) ───────────▶  handler(input, ctx)
+  │                                                    ◀───────────  returns result
+  │                         stores the result, tool.result event
+  │ ◀── result sent to the provider
+  │ continues the turn
+```
+
+Because the call is stored before the handler runs, an instance crash in the middle is recovered.
+The next owner runs the handler again and sends the result.
+
 ### Handler return values
 
 | You return | The agent receives |
 | --- | --- |
 | a string | one text block |
-| `ContentBlock[]` | those blocks |
+| `ContentBlock[]` | those blocks (text, image, …) |
 | `{ content, isError? }` | exactly that |
-| any other object | its JSON as text |
+| any other object | its JSON, as text |
 | `null` / `undefined` | an empty result |
-| *(throws)* | the error message, marked `isError` |
+| *(throws)* | the error message as text, with `isError: true` |
 
-### Handler context
+### Handler context (`ctx`)
 
-`ctx` contains `sessionId`, `toolUseId`, `name`, the session `metadata`, and a `signal`. The
-signal is aborted if this instance loses ownership of the session; another instance will run the
-tool again.
+| Field | Description |
+| --- | --- |
+| `sessionId` | Runtime session id |
+| `toolUseId` | Id of this call. Stable across retries; use it as an idempotency key |
+| `name` | Tool name |
+| `metadata` | The session metadata you passed to `createSession` (e.g. user id, tenant) |
+| `signal` | Aborted if this instance loses ownership of the session; another instance will retry |
 
 ### Rules for handlers
 
-- **Make handlers idempotent.** If an instance crashes while a handler runs, the next owner runs
-  it again. Use `ctx.toolUseId` as an idempotency key for side effects.
-- **No frontend needed.** Handlers run on whichever instance owns the session, whether or not a
-  browser is connected.
-- **Unknown tools fail cleanly.** A custom tool with no registered handler returns an error result
-  to the agent instead of hanging.
+- **Idempotent.** A crash mid-call means the handler runs again. For side effects (payments,
+  emails), deduplicate with `ctx.toolUseId`.
+- **No built-in timeout.** The turn waits for the handler. Enforce your own timeout and return an
+  error result if it expires.
+- **Authorization is yours.** Use `ctx.metadata` to know on whose behalf the call runs. The runtime
+  does no access control.
+- **Unknown tools.** A call to a custom tool without a registered handler gets an error result
+  immediately, so the turn never hangs.
 
 ### Declaring tools to the provider
 
-- **Managed Agents:** declare custom tools in the agent definition you create with the Anthropic
-  API (`type: 'custom'`). The runtime matches calls to handlers by name.
-- **AgentCore:** nothing to do. The runtime sends the tool list to the container, which exposes the
-  tools to the Claude Agent SDK automatically.
+The model only calls tools it knows about.
+
+**Claude Managed Agents:** declare the tool on the agent when you create it with the Anthropic
+API. Use the same name and schema:
+
+```ts
+await anthropic.beta.agents.create({
+  name: 'Support agent',
+  model: 'claude-sonnet-5-5',
+  tools: [
+    { type: 'agent_toolset_20260401' }, // built-in tools (bash, files, web, …)
+    {
+      type: 'custom',
+      name: 'lookup_order',
+      description: 'Look up an order by id. Returns status and shipping date.',
+      input_schema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+    },
+  ],
+})
+```
+
+**Claude Agent SDK on AgentCore:** nothing to do. The runtime sends its tool list to the
+container, which registers the tools with the SDK.
 
 ## Approvals
 
-When the provider asks whether a tool may run, the runtime first asks your **policy**:
+### Which tool calls need a decision
+
+The provider decides which calls need permission. Only those reach the runtime:
+
+| Provider | Configured by | Notes |
+| --- | --- | --- |
+| Claude Managed Agents | the agent's permission policy: `always_allow`, `always_ask`, or `auto` (the service decides per call) | Calls the service evaluates as `ask` come to the runtime. Custom tools never need permission |
+| Claude Agent SDK | `permissionMode` and `allowedTools` in the SDK options | Tools not pre-allowed go through the SDK's `canUseTool`, which the driver forwards to the runtime. Custom tools are always allowed |
+
+Example: require confirmation for every built-in tool on a Managed Agents agent:
+
+```ts
+tools: [{ type: 'agent_toolset_20260401', default_config: { permission_policy: { type: 'always_ask' } } }]
+```
+
+### Your policy decides first
 
 ```ts
 createRuntime({
   // …
   approvals: {
-    policy: async ({ name, input, metadata, sessionId, provider }) => {
-      if (name === 'read_file') return 'allow'
-      if (name === 'delete_database') return { decision: 'deny', message: 'Never.' }
-      if (metadata.plan === 'enterprise') return { decision: 'ask', timeoutMs: 30 * 60_000 }
-      return 'ask'
+    policy: async ({ name, input, metadata, sessionId, provider, toolUseId }) => {
+      if (name === 'Read' || name === 'Grep') return 'allow'
+      if (name === 'Bash' && /rm\s+-rf/.test(String(input.command))) return { decision: 'deny', message: 'Deleting files is not allowed.' }
+      if (metadata.role === 'admin') return 'allow'
+      return { decision: 'ask', timeoutMs: 30 * 60_000 }
     },
-    timeoutMs: 10 * 60_000,   // how long 'ask' waits (default 10 minutes)
-    defaultOnTimeout: 'deny', // what happens when nobody answers (default 'deny')
+    timeoutMs: 10 * 60_000,   // default wait for 'ask'
+    defaultOnTimeout: 'deny', // applied when nobody answers in time
   },
 })
 ```
 
-| Policy returns | What happens |
+The policy receives:
+
+| Field | Description |
 | --- | --- |
-| `'allow'` / `{ decision: 'allow' }` | Approved immediately; an `approval.resolved` event with `by: 'policy'` is recorded |
-| `'deny'` / `{ decision: 'deny', message }` | Denied immediately; the message is shown to the agent |
-| `'ask'` / `{ decision: 'ask', timeoutMs? }` | An `approval.requested` event is emitted and the runtime waits for a human |
-| *(throws)* | Treated as `'ask'`, so a policy bug never blocks the session |
+| `name` | Tool name |
+| `input` | Tool input |
+| `toolUseId` | Id of the call |
+| `sessionId` | Runtime session id |
+| `provider` | Provider key of the session |
+| `metadata` | Session metadata |
 
-With no policy configured, everything is `'ask'`.
+It returns one of:
 
-### Answering an approval
+| Return value | Effect | Events |
+| --- | --- | --- |
+| `'allow'` or `{ decision: 'allow', message? }` | Runs immediately | `approval.resolved` (`by: 'policy'`) |
+| `'deny'` or `{ decision: 'deny', message? }` | Refused; the agent sees the message | `approval.resolved` (`by: 'policy'`), then `tool.result` with `isError` |
+| `'ask'` or `{ decision: 'ask', timeoutMs? }` | Waits for a human | `approval.requested` |
+| `{ decision: 'allow', updatedInput }` | Runs with modified input, if the provider supports it ([see below](#approving-with-modified-input-updatedinput)) | `approval.resolved` (`by: 'policy'`) |
+| *(throws)* | Treated as `'ask'`, so a bug in the policy never blocks a session | `approval.requested` |
+
+Without a policy, every call is `'ask'`.
+
+### Waiting for a human
+
+```
+tool.call              { toolUseId: "t1", name: "Bash", input: {…} }
+approval.requested     { approvalId: "a1", toolUseId: "t1", expiresAt: "…" }
+       … a person decides in your UI …
+approval.resolved      { approvalId: "a1", decision: "allow", by: "user" }
+tool.result            { toolUseId: "t1", … }
+```
+
+Answer from any route, on any instance:
 
 ```ts
 await session.resolveApproval(approvalId, 'allow')
 await session.resolveApproval(approvalId, 'deny', 'Please use the staging database')
 ```
 
-- `approvalId` comes from the `approval.requested` event, or from `session.pendingApprovals()`
-  after a page reload.
-- Any instance can answer, even one that doesn't own the session.
-- Exactly one decision wins. A second answer, or an answer after the timeout, is rejected with a
-  `CommandError` ("already resolved").
-- A denied call still gets a `tool.result`: an error result whose text is your message. Every
-  `tool.call` ends with exactly one `tool.result`, whichever provider is used.
+- **Where the id comes from.** `approvalId` is in the `approval.requested` event. After a page
+  reload, `await session.pendingApprovals()` returns the open ones, with `id`, `toolUseId`,
+  `name`, `input`, and `expiresAt`.
+- **Exactly one decision wins.** Answering again, or after the timeout, throws
+  `CommandError: Approval … is already resolved`. Map it to HTTP 409.
+- **Denials.** A denied call ends with a `tool.result` that has `isError: true` and your message as
+  its text. Every `tool.call` gets exactly one `tool.result`.
+
+### Timeouts
+
+The deadline (`expiresAt`) is stored in the database. If the owner crashes, the new owner re-arms
+the timer with the remaining time. When it expires, `defaultOnTimeout` is applied and recorded as
+`by: 'timeout'`.
 
 ### Approving with modified input (`updatedInput`)
 
 Besides allow and deny, a reviewer can **allow the call with different input**. For example, they
-might narrow `rm -rf ./build` to `rm -rf ./build/tmp`, edit an email before it is sent, or let a
-policy force `--dry-run` onto every `git push`:
+might narrow `rm -rf ./build` to `rm -rf ./build/tmp`, correct an email before it is sent, or let a
+policy add `--dry-run` to every `git push`:
 
 ```ts
 await session.resolveApproval(approvalId, { behavior: 'allow', updatedInput: { command: 'rm -rf ./build/tmp' } })
 
-// or in a policy
+// in a policy
 policy: ({ name, input }) =>
   name === 'Bash' && String(input.command).startsWith('git push')
     ? { decision: 'allow', updatedInput: { ...input, command: `${input.command} --dry-run` } }
     : 'ask'
 ```
 
-This is **off by default** and must be enabled per provider. If a reviewer believes they changed
-the input but the original input runs, that is a safety problem, so the runtime never silently
-ignores it:
+This is **off by default**. A reviewer who believes they changed the input while the original
+runs is a safety problem, so the runtime never ignores `updatedInput` silently:
 
 | Provider | Support |
 | --- | --- |
 | Claude Managed Agents | Not supported; the API can only allow or deny |
-| Claude Agent SDK (AgentCore) | Supported once you enable it with `agentCore({ allowUpdatedInput: true, … })` |
+| Claude Agent SDK (AgentCore) | Supported after enabling it: `agentCore({ allowUpdatedInput: true, … })` |
 
-- Check `(await session.capabilities()).approvalUpdatedInput` to decide whether your UI offers an
-  "edit and approve" option.
-- `resolveApproval` with `updatedInput` throws `CapabilityError` when the capability is off.
-- A policy that returns `updatedInput` when the capability is off is logged as an error, and the
-  call goes to a human (`'ask'`) instead.
-
-### Timeouts
-
-Each approval stores its deadline in the database. If the owner crashes, the new owner re-arms
-the timer with the remaining time. When it fires, `defaultOnTimeout` is applied and recorded as
-`by: 'timeout'`.
-
-### Which tools ask for permission?
-
-That is decided by the provider, before the runtime is involved:
-
-- **Managed Agents:** the agent's permission policies (`always_allow`, `always_ask`, `auto`). Only
-  calls the service evaluates as `ask` reach your policy.
-- **Claude Agent SDK:** the SDK's `permissionMode` and `allowedTools`. Tools not pre-allowed go
-  through `canUseTool`, which forwards them to your policy. Custom tools registered on the runtime
-  are always allowed.
+- **Check before offering it.** `(await session.capabilities()).approvalUpdatedInput` tells your
+  UI whether to offer "edit and approve".
+- **From a person.** `resolveApproval` with `updatedInput` throws `CapabilityError` when it is not
+  available.
+- **From a policy.** A policy result with `updatedInput` is logged as an error when it is not
+  available, and the call goes to a human instead.
 
 ## Cancelled requests
 
-Sometimes the provider forgets what it was waiting for. The typical case is an AgentCore microVM
-being replaced. The adapter then reports `actions_reset`, and the runtime:
+A provider can lose what it was waiting for. The typical case is an AgentCore microVM being
+replaced. The runtime then:
 
-- marks every pending tool call and approval as `cancelled`;
-- emits `approval.resolved` with `decision: 'deny', by: 'system'` for open approvals, so your UI
-  can close the dialog.
+- marks every pending tool call and approval as cancelled;
+- emits `approval.resolved` with `decision: 'deny', by: 'system'` for each open approval, so your
+  UI closes the dialog;
+- emits an error `tool.result` for those calls.
+
+The conversation continues normally with the next message.

@@ -75,7 +75,7 @@ runtime's polling fallback, so nothing is lost, only delayed.
 | Table | Purpose |
 | --- | --- |
 | `sessions` | One row per session: provider ids, status, provider cursor, lease (`owner_instance`, `lease_expires_at`), last `seq` |
-| `events` | The event log, keyed by `(session_id, seq)`; `source_id` is unique per session for deduplication |
+| `events` | The event log, keyed by `(session_id, seq)`; `source_id` is unique per session for deduplication; `thread_id` for sub-agent attribution |
 | `commands` | Queued `send` / `interrupt` / `resolve_approval` / `terminate` commands |
 | `actions` | Tool calls and approvals the provider is waiting on, with compare-and-set status |
 | `transcripts` | Agent SDK transcript entries (used by the AgentCore integration) |
@@ -89,6 +89,15 @@ runtime's polling fallback, so nothing is lost, only delayed.
   clocks.
 - **One decision per approval.** Resolution is an `UPDATE … WHERE status = 'pending'`, so only one
   decision can win.
+
+## Migrations
+
+| Name | Change |
+| --- | --- |
+| `001_init` | All tables |
+| `002_event_thread` | `events.thread_id` |
+
+`migrate()` records applied migrations in `migrations` and applies only new ones.
 
 ## Operations notes
 
@@ -108,6 +117,8 @@ when `AGENT_RUNTIME_PG_URL` is set. Each run uses a throwaway schema.
 ```bash
 AGENT_RUNTIME_PG_URL=postgres://postgres@localhost:5432/postgres pnpm test
 ```
+
+Inspection queries and retention SQL: [Operations](../../docs/operations.md#inspecting-state-in-postgres).
 
 ## Further reading
 

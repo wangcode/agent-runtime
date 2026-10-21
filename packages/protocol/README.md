@@ -20,7 +20,7 @@ pnpm add @agent-runtime/protocol
 
 ```
 client                                    container
-  │── hello {sessionId, bootId?, afterSeq?, config, tools} ─▶│
+  │── hello {sessionId, bootId?, afterSeq?, config, tools, features} ─▶│
   │◀─ welcome {bootId, lastSeq, created} ────────────────────│
   │◀─ event {seq, event} … (replay after afterSeq) ──────────│
   │◀─ tool_request / approval_request / store_request ───────│ (anything still pending)
@@ -40,7 +40,7 @@ client                                    container
 
 | Type | Fields | Purpose |
 | --- | --- | --- |
-| `hello` | `protocol, sessionId, bootId?, afterSeq?, config, tools` | First message on every connection; creates the session if needed and requests replay |
+| `hello` | `protocol, sessionId, bootId?, afterSeq?, config, tools, features?` | First message on every connection; creates the session if needed and requests replay. `features.approvalUpdatedInput` tells the container whether approvals may change tool input |
 | `user_message` | `id, content` | Send a user message |
 | `interrupt` | `id` | Stop the current turn |
 | `tool_result` | `id, requestId, result` | Answer a `tool_request` |

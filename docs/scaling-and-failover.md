@@ -1,92 +1,124 @@
 # Scaling and failover
 
-`agent-runtime` is designed to run on several identical instances behind an ordinary load balancer.
-No sticky sessions are required.
+`agent-runtime` runs on any number of identical instances behind an ordinary load balancer. No
+sticky sessions are needed: any instance can create sessions, send messages, answer approvals, and
+stream events for any session.
 
-## Requirements
+## Setup
 
-- A shared **Postgres** database (version 12 or newer; tested on 16).
-- Each instance uses `PgStore` and `PgBus` against that database.
-- Each instance has a unique `instanceId`. The default is a random UUID per process, which is what
-  you want.
+Every instance needs:
+
+1. **The same Postgres database**, version 12 or newer (tested on 16).
+2. **`PgStore` and `PgBus`** pointing at it.
+3. **A unique `instanceId`.** The default random UUID is fine; a pod or host name makes logs
+   easier to read.
 
 ```ts
-const pool = new pg.Pool({ connectionString: DATABASE_URL, max: 20 })
-await migrate(pool)
+const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 20 })
+await migrate(pool) // safe to run concurrently on every instance
 
 const runtime = createRuntime({
   store: new PgStore({ pool }),
-  bus: new PgBus({ pool, listenConfig: { connectionString: DATABASE_URL } }),
+  bus: new PgBus({ pool, listenConfig: { connectionString: process.env.DATABASE_URL } }),
   providers,
+  instanceId: process.env.HOSTNAME,
+})
+
+process.on('SIGTERM', async () => {
+  await runtime.close()
+  process.exit(0)
 })
 ```
 
-> **Connection poolers.** `PgBus` keeps one dedicated `LISTEN` connection per process. Point
-> `listenConfig` at Postgres directly or at a session-mode pooler, **not** a transaction-mode
-> pooler (such as PgBouncer in transaction mode), because `LISTEN` does not work there. `PgStore`
-> works with any pooler.
+> **Connection poolers.** `PgBus` keeps one dedicated `LISTEN` connection per instance. Point
+> `listenConfig` at Postgres directly, or at a **session-mode** pooler. `LISTEN` does not work
+> through a transaction-mode pooler (such as PgBouncer in transaction mode). `PgStore` works through
+> any pooler.
 
-## What happens where
+## How requests are routed
 
-| Request arrives at… | Result |
+Each active session has one **owner**: the instance holding its provider connection.
+
+| Request arrives at… | What happens |
 | --- | --- |
-| The instance that owns the session | Handled directly |
-| Another instance, while the session has an owner | The command is queued; the owner is notified and executes it; the caller waits for the result |
-| Any instance, while the session has no owner (idle) | That instance takes ownership and handles the command |
-| `session.events()` on any instance | Replays from Postgres, then follows live notifications |
+| The owner | Executed directly |
+| Another instance, while the session has an owner | Queued in Postgres; the owner is notified within milliseconds, executes it, and the caller's `await` resolves |
+| Any instance, while nobody owns the session (it is idle) | That instance becomes the owner and executes it |
+| `session.events()` on any instance | Replays stored events from Postgres, then follows new ones via notifications |
 
-## Crash recovery
+Idle sessions have no owner and hold no provider connection. Ownership is taken on the next
+command.
 
-When the owning instance dies (crash, deploy, OOM):
+## Failover
 
-1. Its lease stops being renewed and expires after `lease.ttlMs` (default 15 s).
-2. Another instance's orphan scan, which runs every `orphanScanIntervalMs` (default 5 s), finds the
-   session because it is busy or has pending work, and takes it over.
-3. The new owner reconnects to the provider using the stored cursor and replays anything missed.
-   Duplicates are dropped.
-4. It resumes in-flight work:
-   - pending tool calls are re-run;
-   - approval timers are re-armed;
-   - decided-but-undelivered results are sent again;
-   - queued commands are executed.
+When the owner of a busy session dies (crash, OOM kill, network partition):
 
-Typical takeover time is `ttl` plus up to one scan interval, so 15–20 s with the defaults.
+| Time | What happens |
+| --- | --- |
+| 0 s | Owner dies. Its lease (expiry `lease.ttlMs`, default 15 s) is no longer renewed |
+| ≤ 15 s | Lease expires |
+| ≤ 20 s | Another instance's orphan scan (every `orphanScanIntervalMs`, default 5 s) claims the session |
+| +connect | The new owner reconnects to the provider from the stored cursor, re-runs unfinished tool calls, re-arms approval timeouts, re-sends undelivered results, and executes queued commands |
 
-**Graceful shutdown:** call `await runtime.close()` on `SIGTERM`. It releases leases immediately, so
-other instances don't have to wait for expiry.
+Expect 15–20 seconds of silence with the defaults. Lower `lease.ttlMs` and `orphanScanIntervalMs`
+for faster failover, at the cost of more database writes.
 
-## Tuning
+What users see during a failover:
 
-All options are passed to `createRuntime()`.
+| | Effect |
+| --- | --- |
+| Open SSE streams on surviving instances | Keep working; events resume when the new owner reconnects |
+| Open SSE streams on the dead instance | Dropped; `EventSource` reconnects (through the load balancer) with `Last-Event-ID` and loses nothing |
+| `send()` in progress | Waits; it completes when the new owner executes the queued command, or throws after `commandTimeoutMs` (the command still runs later) |
+| Pending approvals | Still answerable; their timeouts keep their original deadline |
+| Custom tool running on the dead instance | Re-run by the new owner (so handlers must be idempotent) |
+| Live token deltas during the gap | Lost; the final text arrives in `message.completed` |
+| Interrupt / usage of the turn in progress | May be lost: the next `turn.completed` might show `end_turn` and incomplete `usage` ([open question](behavior-spec.md#open-questions)) |
 
-| Option | Default | Effect |
+### Deploys
+
+On `SIGTERM`, `runtime.close()` releases every lease right away, so other instances take over at
+their next orphan scan (≤ 5 s) instead of waiting for leases to expire. Rolling deploys therefore
+cause only short pauses.
+
+### Testing failover
+
+Start two instances, begin a long turn, and kill the owner with `kill -9`. The session's
+`owner_instance` changes within ~20 s, and the stream continues:
+
+```sql
+SELECT owner_instance, lease_expires_at, status FROM agent_runtime.sessions WHERE id = '<session id>';
+```
+
+## Capacity
+
+| Resource | Per instance | Notes |
 | --- | --- | --- |
-| `lease.ttlMs` | `15000` | How long ownership lasts without renewal. Lower means faster takeover but more DB writes |
-| `lease.renewIntervalMs` | `ttlMs / 3` | How often the owner renews |
-| `orphanScanIntervalMs` | `5000` | How often each instance looks for sessions to take over |
-| `idleReleaseMs` | `60000` | How long an idle session keeps its provider connection before releasing it |
-| `pollIntervalMs` | `2000` | Safety-net polling for subscribers and command waiters, in case a notification was lost |
-| `commandTimeoutMs` | `60000` | How long `send()` and the other commands wait for execution before throwing (the command stays queued) |
-| `reconnect.baseMs` / `reconnect.maxMs` | `500` / `30000` | Backoff for provider reconnects |
+| Postgres connections | pool size + 1 | The extra one is the `LISTEN` connection |
+| Provider connections | one per **active** session it owns | Released after `idleReleaseMs` of inactivity |
+| Background queries | 1 orphan scan per `orphanScanIntervalMs`; 1 lease renewal per owned session per `lease.renewIntervalMs` | Small indexed queries |
+| Per event | 1 short transaction (append) + 1 `NOTIFY` | Deltas: `NOTIFY` only, no write |
+
+Load spreads naturally: whichever instance receives the first command of an idle session becomes
+its owner.
 
 ## Database tables
 
-`migrate()` creates these tables in the `agent_runtime` schema (configurable):
+`migrate()` creates these in the `agent_runtime` schema (configurable with `{ schema }`):
 
 | Table | Contents | Grows with |
 | --- | --- | --- |
-| `sessions` | One row per session: provider, status, cursor, lease | sessions |
+| `sessions` | One row per session: provider ids, status, cursor, lease, last `seq` | sessions |
 | `events` | The persisted event log | messages and tool calls |
-| `commands` | Queued and completed commands | user actions |
+| `commands` | Queued and executed commands | user actions |
 | `actions` | Tool calls and approvals | tool usage |
-| `transcripts` | Agent SDK transcript entries (AgentCore) | conversation length |
+| `transcripts` | Agent SDK transcripts (AgentCore) | conversation length |
 | `migrations` | Applied migrations | — |
 
-There is no automatic retention yet. Archive or delete old sessions with your own job. Deleting a
-`sessions` row cascades to its events, commands, and actions.
+Retention and inspection queries are in [Operations](operations.md#maintenance).
 
 ## Running without Postgres
 
-`MemoryStore` and `MemoryBus` give you the same behaviour inside a single process. Several runtimes
-can share one `MemoryStore`/`MemoryBus` pair; the test suite uses this to simulate a cluster.
-Everything is lost when the process exits.
+`MemoryStore` and `MemoryBus` give the same behaviour inside one process: for development, tests,
+or single-instance deployments that can lose history on restart. Several runtimes can share one
+`MemoryStore`/`MemoryBus` pair, which is how the test suite simulates a cluster.

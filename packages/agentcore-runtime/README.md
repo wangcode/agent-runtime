@@ -80,7 +80,10 @@ What it does:
   forwarded to the caller, and a `PreToolUse` hook captures the real `tool_use_id`. These tools are
   pre-allowed.
 - **Permissions.** Forwards other permission prompts (`canUseTool`) to the caller's approval
-  policy, and reports `requires_action` while waiting.
+  policy, and reports `requires_action` while waiting. A decision's `updatedInput` is applied only
+  when the caller enabled it (`agentCore({ allowUpdatedInput: true })`, sent as
+  `session.features`).
+- **Sub-agents.** Messages with `parent_tool_use_id` get `threadId` set to it.
 - **Resume.** Uses a stable SDK session id derived from the runtime session id: a new session
   (`sessionId`) the first time, and `resume` once a transcript exists.
 - **Event mapping.** Turns SDK messages into unified events following a coverage table over every
@@ -96,7 +99,7 @@ container's IAM role needs Bedrock model access.
 
 Implement `AgentDriver` to host another framework, such as Mastra. The driver receives a
 `DriverSession` with `emit`, `requestTool`, `requestApproval`, `sessionStore`, and `setBusy`; the
-server handles everything else. See [Writing a provider or driver](../../docs/extending.md#drivers).
+server handles everything else. See [Writing a provider or driver](../../docs/extending.md#writing-a-driver-agentcore).
 
 ## Exports
 

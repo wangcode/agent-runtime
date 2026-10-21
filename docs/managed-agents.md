@@ -6,8 +6,32 @@ and reads events back. `@agent-runtime/provider-managed-agents` connects that AP
 
 ## Setup
 
-You create the **agent** and the **environment** yourself, with the Anthropic API or Console. The
-provider only creates **sessions** for them.
+### 1. Create an agent and an environment (once)
+
+You create these yourself, with the Anthropic API or Console. The provider only creates
+**sessions** for them. Declare your runtime's custom tools on the agent, using the same names:
+
+```ts
+import Anthropic from '@anthropic-ai/sdk'
+const anthropic = new Anthropic()
+
+const environment = await anthropic.beta.environments.create({ name: 'support', config: { type: 'cloud' } })
+
+const agent = await anthropic.beta.agents.create({
+  name: 'Support agent',
+  model: 'claude-sonnet-5-5',
+  system: 'You help customers with their orders.',
+  tools: [
+    // built-in tools; 'always_ask' sends every call to your approval policy
+    { type: 'agent_toolset_20260401', default_config: { permission_policy: { type: 'always_ask' } } },
+    // a custom tool handled by the runtime's `tools.lookup_order`
+    { type: 'custom', name: 'lookup_order', description: 'Look up an order by id', input_schema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
+  ],
+})
+// keep agent.id and environment.id, e.g. in configuration
+```
+
+### 2. Register the provider and create sessions
 
 ```ts
 import Anthropic from '@anthropic-ai/sdk'
@@ -51,6 +75,23 @@ connect ──▶ open events stream ──▶ list history since cursor ──�
 The cursor is the id and `processed_at` of the last processed event. It is stored with the session,
 so a different instance can resume after a takeover.
 
+## Example: one turn, before and after mapping
+
+| Managed Agents sends | Runtime emits |
+| --- | --- |
+| *(you call `send('find order 42')`)* | `user.message`, `session.status: running` |
+| `user.message` (echo) | — |
+| `session.status_running` | — (already running) |
+| `event_start` + `event_delta` (`agent.message`) | `message.start`, `text.delta` (live) |
+| `agent.message` with one text block | `message.completed` (`messageId: "<event id>:0"`) |
+| `agent.custom_tool_use` `lookup_order` | `tool.call` (`kind: custom`); your handler runs |
+| `session.status_idle` (`requires_action`) | `session.status: requires_action` |
+| *(handler returns; runtime sends `user.custom_tool_result`)* | `tool.result` |
+| `session.status_running` | `session.status: running` |
+| `agent.message` | `message.completed` |
+| `span.model_request_end` ×2, `session.usage` | — (summed into the turn's usage) |
+| `session.status_idle` (`end_turn`) | `session.status: idle`, `turn.completed` (`usage` with tokens and `costUsd`) |
+
 ## What gets sent to Managed Agents
 
 | Runtime call | Managed Agents event |
@@ -70,10 +111,10 @@ Every Managed Agents event type is listed in the coverage table (`src/coverage.t
 upgrade that adds a type fails the build until it is handled; see [Event coverage](event-coverage.md).
 Notable details:
 
-- **Deltas** are requested with `event_deltas: ['agent.message', 'agent.thinking']`. Disable them
-  with `deltas: false`.
-- **Thinking.** `agent.thinking` events carry no text. When deltas are on, the provider collects
-  the thinking deltas and puts them into the `message.completed` thinking block.
+- **Deltas** are always requested (`event_deltas: ['agent.message', 'agent.thinking']`).
+  `deltas: false` only stops forwarding them as live events.
+- **Thinking.** `agent.thinking` events carry no text. The provider collects the thinking deltas
+  and puts them into the `message.completed` thinking block, whether or not deltas are forwarded.
 - **Permissions.** `agent.tool_use` and `agent.mcp_tool_use` with
   `evaluated_permission: "ask"` become approval requests. Calls evaluated as `allow` or `deny` are
   not shown to your policy.
@@ -114,6 +155,10 @@ Notable details:
 | `logger` | none | `{ debug, info, warn, error }` |
 
 ## API usage and rate limits
+
+Managed Agents limits requests per organization: **300 per minute** for create endpoints
+(sessions, agents, environments) and **1,200 per minute** for read endpoints (retrieve, list,
+stream). Organization spend limits also apply. This is what the provider uses:
 
 | Situation | API calls |
 | --- | --- |
