@@ -1,0 +1,42 @@
+{
+  "name": "@agent-runtime/agentcore-runtime",
+  "version": "0.1.0",
+  "description": "Container-side runtime for Bedrock AgentCore with pluggable agent drivers",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@agent-runtime/core": "workspace:*",
+    "@agent-runtime/protocol": "workspace:*",
+    "ws": "^8.18.0"
+  },
+  "peerDependencies": {
+    "@anthropic-ai/claude-agent-sdk": ">=0.2.0"
+  },
+  "peerDependenciesMeta": {
+    "@anthropic-ai/claude-agent-sdk": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.13",
+    "@anthropic-ai/claude-agent-sdk": "^0.3.305",
+    "zod": "^4.1.0"
+  }
+}

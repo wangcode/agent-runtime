@@ -1,0 +1,49 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": [
+      "ES2022"
+    ],
+    "types": [
+      "node"
+    ],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "declaration": true,
+    "resolveJsonModule": true,
+    "verbatimModuleSyntax": true,
+    "baseUrl": ".",
+    "paths": {
+      "@agent-runtime/core/rxjs": [
+        "packages/core/src/rxjs.ts"
+      ],
+      "@agent-runtime/core/testing": [
+        "packages/core/src/testing/index.ts"
+      ],
+      "@agent-runtime/core": [
+        "packages/core/src/index.ts"
+      ],
+      "@agent-runtime/protocol": [
+        "packages/protocol/src/index.ts"
+      ],
+      "@agent-runtime/store-postgres": [
+        "packages/store-postgres/src/index.ts"
+      ],
+      "@agent-runtime/provider-managed-agents": [
+        "packages/provider-managed-agents/src/index.ts"
+      ],
+      "@agent-runtime/provider-agentcore": [
+        "packages/provider-agentcore/src/index.ts"
+      ],
+      "@agent-runtime/agentcore-runtime": [
+        "packages/agentcore-runtime/src/index.ts"
+      ]
+    }
+  }
+}
