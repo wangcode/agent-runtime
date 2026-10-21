@@ -6,21 +6,45 @@ helps when you are deploying, debugging, or extending it.
 ## The big picture
 
 ```
-                 ┌───────────────────── your backend (N instances) ─────────────────────┐
- browser ─SSE──▶ │ instance A                       instance B (owner of session S)    │
-                 │  session.events()                 SessionWorker(S)                  │
- browser ─POST─▶ │  session.send() ──commands──┐     ├─ provider stream ◀──────────────┼──▶ provider
-                 │                             │     ├─ runs custom tools              │   (Managed Agents,
-                 │                             │     ├─ applies approval policy        │    AgentCore, …)
-                 │                             │     └─ executes queued commands       │
-                 └─────────────────────────────┼───────────────┬───────────────────────┘
-                                               ▼               ▼
-                                     ┌────────────────────────────────────┐
-                                     │ Store (Postgres): sessions, events,│
-                                     │ commands, actions, transcripts     │
-                                     │ Bus (LISTEN/NOTIFY): wake-ups      │
-                                     └────────────────────────────────────┘
+                ┌──────────────────── API layer: your backend instances ────────────────────┐
+ browser ─SSE─▶ │  instance A              instance B              instance C               │
+ browser ─HTTP▶ │  session.events()        session.send()          session.resolveApproval()│
+                │  (read events)           (enqueue command)       (enqueue command)        │
+                └──────────┬──────────────────────┬──────────────────────┬──────────────────┘
+                           │   never talks to a provider directly        │
+═══════════════════════════╪══════════════════════╪══════════════════════╪═══════════════════
+                           ▼                      ▼                      ▼
+ ┌─────────────────────────────────┐ ┌────────────────────────────┐ ┌──────────────────────────┐
+ │ Agent runtime                   │ │ Store (Postgres)           │ │ Bus (LISTEN/NOTIFY)      │
+ │ one SessionWorker per session,  │ │ sessions · events ·        │ │ new event · new command ·│
+ │ owned through a lease           │◀▶│ commands · actions ·       │◀▶│ live token deltas        │
+ │  ├─ holds the provider stream   │ │ transcripts                │ │                          │
+ │  ├─ runs custom tools           │ └────────────────────────────┘ └──────────────────────────┘
+ │  ├─ applies approval policy     │
+ │  └─ executes queued commands    │
+ └────────────────┬────────────────┘
+                  │ the only path to providers
+                  ▼
+ ┌─────────────────────────────────────────────────────────────┐
+ │ Providers: Claude Managed Agents · Bedrock AgentCore · …    │
+ └─────────────────────────────────────────────────────────────┘
 ```
+
+Read the diagram as three layers:
+
+- **API layer.** Your backend instances serve HTTP and SSE. They are interchangeable and
+  stateless: they read events from the store, write commands to it, and listen on the bus. They
+  never talk to a provider.
+- **Agent runtime.** This is the only thing that talks to providers. For each active session,
+  exactly one `SessionWorker` holds the provider connection and does all the work for that
+  session.
+- **Shared state.** The store and the bus connect the two layers, and they are the only thing the
+  layers share.
+
+The agent runtime is a logical layer. Physically, its workers run inside the same processes as the
+API layer: any instance can host the worker for a given session, and a worker moves to another
+instance when its owner releases the session or crashes. Nothing depends on *which* instance hosts
+it, so the runtime could later be split into its own deployment without changing the API layer.
 
 ## Building blocks
 
