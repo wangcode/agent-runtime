@@ -13,4 +13,4 @@ export {
   type EventsOptions,
   type SendInput,
 } from './runtime.js'
-export { AsyncQueue, Notifier, backoff, sleep, newId, errorMessage, deferred, noopLogger, type Logger, type Deferred } from './util.js'
+export { abortable, AsyncQueue, Notifier, backoff, sleep, newId, errorMessage, deferred, noopLogger, type Logger, type Deferred } from './util.js'

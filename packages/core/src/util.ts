@@ -114,6 +114,27 @@ export class AsyncQueue<T> implements AsyncIterable<T> {
   }
 }
 
+/**
+ * Iterate `source` until `signal` aborts, even if the source itself ignores the signal. On abort
+ * the source's `return()` is called without awaiting it.
+ */
+export async function* abortable<T>(source: AsyncIterable<T>, signal: AbortSignal): AsyncGenerator<T> {
+  const iterator = source[Symbol.asyncIterator]()
+  const aborted = new Promise<'aborted'>((resolve) => {
+    if (signal.aborted) resolve('aborted')
+    else signal.addEventListener('abort', () => resolve('aborted'), { once: true })
+  })
+  try {
+    while (true) {
+      const next = await Promise.race([iterator.next(), aborted])
+      if (next === 'aborted' || next.done) return
+      yield next.value
+    }
+  } finally {
+    void Promise.resolve(iterator.return?.()).catch(() => {})
+  }
+}
+
 export const errorMessage = (err: unknown): string => (err instanceof Error ? err.message : String(err))
 
 export interface Logger {

@@ -4,7 +4,7 @@ import type { ActionRecord, CommandRecord, SessionRecord } from './store.js'
 import { topics } from './store.js'
 import { normalizeToolOutput } from './tools.js'
 import type { RuntimeInternals } from './runtime.js'
-import { backoff, deferred, errorMessage, newId, sleep } from './util.js'
+import { abortable, backoff, deferred, errorMessage, newId, sleep } from './util.js'
 
 /** NOTIFY payloads are capped at 8000 bytes; keep delta chunks well below that. */
 const MAX_DELTA_CHARS = 1500
@@ -130,7 +130,7 @@ export class SessionWorker {
       try {
         const fresh = await this.rt.store.getSession(this.sessionId)
         const cursor = fresh?.providerCursor ?? null
-        for await (const out of this.adapter.connect({ ...this.ctx, cursor, signal: this.signal })) {
+        for await (const out of abortable(this.adapter.connect({ ...this.ctx, cursor, signal: this.signal }), this.signal)) {
           attempt = 0
           if (this.signal.aborted) break
           await this.handleOutput(out)
