@@ -1,157 +1,80 @@
 # agent-runtime
 
-A TypeScript abstraction layer over hosted agent providers. It does the plumbing so your backend
-only deals with one session API and one event model:
+**One session API and one event stream for every agent provider.**
 
-- **Provider streams**: keeps the connection to the provider open, reconnects with backoff, and fills
-  gaps from a persisted cursor.
-- **Frontend independence**: the agent keeps working when the browser's SSE connection drops. While
-  it does, server-side custom tools run, tool permissions are decided by policy, and human approvals
-  wait (with a timeout that defaults to deny).
-- **Horizontal scaling**: any instance can serve any request. Commands are routed to the instance
-  that owns the provider stream. Events are fanned out across instances via Postgres
-  `LISTEN/NOTIFY`, and clients resume with `Last-Event-ID`.
-- **Failover**: ownership is a lease. If the owner dies, another instance takes over the busy
-  session, reconnects to the provider, and finishes pending tool calls and approvals.
-- **One event model**: every provider maps onto the same `RuntimeEvent` union. The original
-  payload stays available as `raw`.
+`agent-runtime` is a TypeScript library for Node.js backends that talk to hosted AI agents. It takes
+care of the plumbing that every such backend ends up writing:
 
-Phase 1 providers:
+- **Keeping provider streams alive.** It holds the long-lived connection to the provider,
+  reconnects with backoff, and resumes from a stored cursor.
+- **Surviving frontend disconnects.** When a browser closes its SSE connection, the agent keeps
+  working. Server-side tools still run, routine permissions are decided by policy, and approvals
+  that need a human wait until someone answers or the timeout expires.
+- **Running on many instances.** Any instance can serve any request. Commands are routed to the
+  instance that holds the provider stream, events reach every instance, and clients resume with
+  `Last-Event-ID`.
+- **Recovering from crashes.** Session ownership is a lease. If the owning process dies, another
+  instance takes over and finishes the work that was in flight.
+- **Unifying provider events.** Each provider's event format is mapped onto one event model. The
+  original payload stays available as `raw`.
 
-| Provider | Package | How it connects |
-| --- | --- | --- |
-| Claude Managed Agents | `@agent-runtime/provider-managed-agents` | `@anthropic-ai/sdk` beta sessions API (SSE stream plus event list catch-up) |
-| Claude Agent SDK on Bedrock AgentCore | `@agent-runtime/provider-agentcore` + `@agent-runtime/agentcore-runtime` | SigV4 WebSocket to a container that runs the SDK |
-
-## Packages
-
-| Package | Purpose |
-| --- | --- |
-| `@agent-runtime/core` | Event model, `Runtime`/`Session` API, session orchestration, `Store`/`Bus` interfaces with in-memory implementations, `core/rxjs` adapter, and `core/testing` FakeProvider |
-| `@agent-runtime/store-postgres` | `PgStore`, `PgBus` (LISTEN/NOTIFY), `migrate()` |
-| `@agent-runtime/provider-managed-agents` | Managed Agents adapter |
-| `@agent-runtime/provider-agentcore` | Caller-side AgentCore adapter (WebSocket, SigV4 or bearer auth) |
-| `@agent-runtime/agentcore-runtime` | Container side: `/ping`, `/ws`, `/invocations`, the `AgentDriver` contract, and the Claude Agent SDK driver (`agentcore-runtime/claude-agent-sdk`) |
-| `@agent-runtime/protocol` | WebSocket protocol shared by the two AgentCore packages |
-
-## Usage
+Phase 1 supports **Claude Managed Agents** and **the Claude Agent SDK hosted on Amazon Bedrock
+AgentCore**.
 
 ```ts
-import pg from 'pg'
-import Anthropic from '@anthropic-ai/sdk'
-import { createRuntime, toSSE } from '@agent-runtime/core'
-import { PgBus, PgStore, migrate } from '@agent-runtime/store-postgres'
-import { managedAgents } from '@agent-runtime/provider-managed-agents'
-import { agentCore } from '@agent-runtime/provider-agentcore'
-
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL })
-await migrate(pool)
-const bus = new PgBus({ pool, listenConfig: { connectionString: process.env.DATABASE_URL } })
-
-const runtime = createRuntime({
-  store: new PgStore({ pool }),
-  bus,
-  providers: {
-    ma: managedAgents({ client: new Anthropic() }),
-    ac: agentCore({ endpoint: { region: 'us-west-2', runtimeArn: process.env.RUNTIME_ARN! } }),
-  },
-  // Custom tools run on whichever instance owns the session, with or without a frontend attached.
-  tools: {
-    lookup_order: {
-      description: 'Look up an order',
-      inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
-      handler: async ({ id }, ctx) => db.orders.find(id),
-    },
-  },
-  approvals: {
-    policy: ({ name }) => (name === 'Read' ? 'allow' : 'ask'), // 'allow' | 'deny' | 'ask'
-    timeoutMs: 10 * 60_000,
-    defaultOnTimeout: 'deny',
-  },
-})
-
-const session = await runtime.createSession({ provider: 'ma', config: { agent: 'agent_...', environmentId: 'env_...' } })
+const session = await runtime.createSession({ provider: 'ma', config: { agent: 'agent_…', environmentId: 'env_…' } })
 await session.send('Where is order 42?')
 
-// In an SSE route, on any instance:
-for await (const event of session.events({ after: Number(req.header('last-event-id') ?? 0), signal })) {
-  res.write(toSSE(event))
+for await (const event of session.events({ after: lastEventId })) {
+  res.write(toSSE(event)) // works on any instance, resumes without gaps or duplicates
 }
-
-// From any instance:
-await session.resolveApproval(approvalId, 'allow')
-await session.interrupt()
 ```
 
-If you prefer RxJS:
+---
 
-```ts
-import { toObservable } from '@agent-runtime/core/rxjs'
-toObservable(() => session.events()).pipe(filter((e) => e.type === 'message.completed'))
-```
+## Table of contents
 
-## Event model
+### Guides
 
-Every event has the shape `{ id, sessionId, seq?, ephemeral?, ts, type, data, provider?, raw? }`.
+| Guide | What you will learn |
+| --- | --- |
+| [Getting started](docs/getting-started.md) | Install, wire up a runtime, and serve SSE to a browser |
+| [Architecture](docs/architecture.md) | Sessions, workers, leases, commands, and how the pieces fit together |
+| [Event model](docs/event-model.md) | Every event type, persisted vs. live events, and the SSE format |
+| [Tools and approvals](docs/tools-and-approvals.md) | Server-side custom tools, approval policies, human approvals, and timeouts |
+| [Scaling and failover](docs/scaling-and-failover.md) | Running several instances, Postgres setup, crash recovery, and tuning |
+| [Claude Managed Agents](docs/managed-agents.md) | How the Managed Agents provider connects, maps events, and reconnects |
+| [Bedrock AgentCore](docs/agentcore.md) | Hosting the Claude Agent SDK on AgentCore: container, protocol, and deployment |
+| [Writing a provider or driver](docs/extending.md) | Adding a new agent backend (Mastra and others) |
 
-- **Persisted events** have a per-session, gap-free `seq`, which is also the SSE `id`.
-- **Ephemeral events** (`message.start`, `text.delta`, `thinking.delta`) are live only. They are
-  never replayed, and the authoritative content always arrives later in `message.completed`.
+### Packages
 
-| Unified event | Managed Agents | Claude Agent SDK (AgentCore) |
-| --- | --- | --- |
-| `user.message` | written by the runtime | written by the runtime |
-| `message.start` / `text.delta` / `thinking.delta` | `event_start` / `event_delta` | `stream_event` content blocks |
-| `message.completed` | `agent.message`, `agent.thinking` | `assistant` text and thinking blocks (one event per block) |
-| `tool.call` (`builtin` / `mcp` / `custom`) | `agent.tool_use`, `agent.mcp_tool_use`, `agent.custom_tool_use` | `assistant` `tool_use` blocks |
-| `tool.result` | `agent.tool_result`, `agent.mcp_tool_result`; custom tools: written by the runtime | `user` `tool_result` blocks; custom tools: written by the runtime |
-| `approval.requested` / `approval.resolved` | `evaluated_permission: ask` → `user.tool_confirmation` | `canUseTool` → caller |
-| `session.status` | `session.status_*` (idle + `requires_action`) | derived from turns and pending approvals |
-| `turn.completed` | `session.status_idle.stop_reason` | `result` |
-| `usage` / `session.error` | `span.model_request_end` / `session.error` | inside `turn.completed` / `result` errors |
-| `provider.custom` | anything else | `system/init`, `compact_boundary`, `api_retry` |
+| Package | Description |
+| --- | --- |
+| [`@agent-runtime/core`](packages/core/README.md) | The runtime: event model, `Runtime`/`Session` API, orchestration, in-memory store, RxJS adapter, and test helpers |
+| [`@agent-runtime/store-postgres`](packages/store-postgres/README.md) | Postgres storage and cross-instance notifications via `LISTEN/NOTIFY` |
+| [`@agent-runtime/provider-managed-agents`](packages/provider-managed-agents/README.md) | Provider for Claude Managed Agents |
+| [`@agent-runtime/provider-agentcore`](packages/provider-agentcore/README.md) | Provider for agents running on Bedrock AgentCore (caller side) |
+| [`@agent-runtime/agentcore-runtime`](packages/agentcore-runtime/README.md) | Server that runs inside the AgentCore container, plus the Claude Agent SDK driver |
+| [`@agent-runtime/protocol`](packages/protocol/README.md) | WebSocket protocol shared by the two AgentCore packages |
 
-## How it works
+### Examples
 
-```
- browser ──SSE──▶ any instance ──┐      session.events(): replay from Postgres, then follow
-                                 │      NOTIFY (persisted) and ephemeral deltas
- browser ──POST─▶ any instance ──┤      send/interrupt/resolveApproval → commands table + NOTIFY
-                                 ▼
-                      owner instance (lease in sessions table)
-                      SessionWorker: provider stream ⇄ adapter
-                        ├─ persist events (seq, dedupe by provider sourceId)
-                        ├─ run custom tool handlers → submitToolResult
-                        ├─ approval policy / human decision / timeout → submitApproval
-                        └─ drain commands; release lease when idle
-```
+| Example | Description |
+| --- | --- |
+| [`examples/express-sse`](examples/express-sse/README.md) | An Express backend with SSE, resume, approvals, and a simulated agent |
+| [`examples/agentcore-container`](examples/agentcore-container/README.md) | Dockerfile and entrypoint for an AgentCore container running the Claude Agent SDK |
 
-- **Lease.** Every `lease.ttlMs / 3` the owner extends `owner_instance` / `lease_expires_at`, using
-  database time. Each instance looks for orphans every `orphanScanIntervalMs`. An orphan is a
-  session that is busy or has pending commands/actions and whose lease has expired; the instance
-  takes it over with a conditional `UPDATE`.
-- **Exactly-once.** Provider events carry a `sourceId` (the Managed Agents event id, or the AgentCore
-  `bootId:seq`), so replays after a reconnect or takeover are dropped. Tool calls and approvals live
-  in the `actions` table with compare-and-set resolution and a `delivered` flag. Results that never
-  reached the provider are re-sent. Tool handlers run at least once, so keep them idempotent.
-- **Managed Agents.** The stream has no resume cursor, so every (re)connect opens the stream, lists
-  events since the stored cursor minus a safety margin, and dedupes by event id.
-- **AgentCore.** The container keeps a per-boot replay log and resends outstanding tool and approval
-  requests when a client reconnects. The adapter rotates connections before the 60-minute stream
-  limit. A changed `bootId` means a fresh microVM: outstanding requests are cancelled, and the
-  Agent SDK resumes from the transcript that its `sessionStore` mirrored into Postgres. `/ping`
-  reports `HealthyBusy` only while a turn or request is in flight, and bumps `time_of_last_update`
-  only on transitions, so idle microVMs are reclaimed.
+---
 
-## Running the AgentCore container
+## Status
 
-See `examples/agentcore-container` for the Dockerfile and entrypoint. The default driver runs the
-Claude Agent SDK with `CLAUDE_CODE_USE_BEDROCK=1`. Per-session SDK options can be passed as
-`config: { options: { model, systemPrompt, maxTurns, ... } }` in `createSession`.
-
-To write a driver for another framework, implement `AgentDriver` from
-`@agent-runtime/agentcore-runtime`: emit unified events, call `requestTool` / `requestApproval`,
-and report busy state.
+| Area | State |
+| --- | --- |
+| Core runtime, Postgres store | Implemented and tested, including multi-instance and takeover tests against a real Postgres |
+| Managed Agents provider | Implemented and tested against a mocked API. Not yet verified against the live service |
+| AgentCore provider and container runtime | Implemented and tested end to end with a local container and a mocked Agent SDK. Not yet deployed to AWS |
+| Managed Agents webhooks | Under discussion (see [Managed Agents: open questions](docs/managed-agents.md#open-questions)) |
 
 ## Development
 
@@ -159,19 +82,10 @@ and report busy state.
 pnpm install
 pnpm typecheck
 pnpm build
-pnpm test                                        # Postgres tests are skipped without a database
+pnpm test                       # Postgres tests are skipped unless a database is configured
 AGENT_RUNTIME_PG_URL=postgres://postgres@localhost:5432/postgres pnpm test
-PROVIDER=fake pnpm --filter @agent-runtime/example-express-sse start
 ```
 
-Tests use mocks only: a scriptable `FakeProvider`, a mocked Anthropic client, a real container
-server driven by a mocked Agent SDK, and an optional local Postgres. No external APIs are called.
-
-## Known gaps / to verify against live services
-
-- **Managed Agents event listing.** `events.list` filters on `created_at`, while events expose
-  `processed_at`. Catch-up uses a configurable margin (`catchUpMarginMs`) and relies on id dedupe.
-- **Multi-agent threads.** Managed Agents multi-agent threads (`session_thread_id`) and Agent SDK
-  subagent messages (`parent_tool_use_id`) are not modelled separately yet.
-- **WebSocket session id.** AgentCore `/ws` is addressed with the session id header. The presigned
-  query-parameter variant, needed for browser-direct connections, is not implemented.
+The monorepo uses pnpm workspaces, tsup (ESM + CJS builds), and vitest. Tests never call external
+services: they use a scriptable fake provider, a mocked Anthropic client, a real container server
+driven by a mocked Agent SDK, and an optional local Postgres.
