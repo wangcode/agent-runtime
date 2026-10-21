@@ -9,19 +9,34 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     },
     "./rxjs": {
-      "types": "./dist/rxjs.d.ts",
-      "import": "./dist/rxjs.js",
-      "require": "./dist/rxjs.cjs"
+      "import": {
+        "types": "./dist/rxjs.d.ts",
+        "default": "./dist/rxjs.js"
+      },
+      "require": {
+        "types": "./dist/rxjs.d.cts",
+        "default": "./dist/rxjs.cjs"
+      }
     },
     "./testing": {
-      "types": "./dist/testing/index.d.ts",
-      "import": "./dist/testing/index.js",
-      "require": "./dist/testing/index.cjs"
+      "import": {
+        "types": "./dist/testing/index.d.ts",
+        "default": "./dist/testing/index.js"
+      },
+      "require": {
+        "types": "./dist/testing/index.d.cts",
+        "default": "./dist/testing/index.cjs"
+      }
     }
   },
   "files": [

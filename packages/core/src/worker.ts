@@ -340,14 +340,21 @@ export class SessionWorker {
     if (existing) return this.recoverAction(existing)
 
     const { approvals } = this.rt.options
-    let verdict = await approvals.policy({
-      sessionId: this.sessionId,
-      provider: this.record.provider,
-      toolUseId: out.toolUseId,
-      name: out.name,
-      input: out.input,
-      metadata: this.record.metadata,
-    })
+    let verdict: Awaited<ReturnType<typeof approvals.policy>>
+    try {
+      verdict = await approvals.policy({
+        sessionId: this.sessionId,
+        provider: this.record.provider,
+        toolUseId: out.toolUseId,
+        name: out.name,
+        input: out.input,
+        metadata: this.record.metadata,
+      })
+    } catch (err) {
+      // A broken policy must not wedge the stream; fall back to asking a human.
+      this.rt.logger.error('approval policy threw; asking instead', { sessionId: this.sessionId, error: errorMessage(err) })
+      verdict = 'ask'
+    }
     if (typeof verdict === 'string') verdict = { decision: verdict } as Exclude<typeof verdict, string>
     const timeoutMs = verdict.decision === 'ask' && 'timeoutMs' in verdict && verdict.timeoutMs ? verdict.timeoutMs : approvals.timeoutMs
 

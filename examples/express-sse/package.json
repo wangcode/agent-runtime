@@ -1,0 +1,25 @@
+{
+  "name": "@agent-runtime/example-express-sse",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@agent-runtime/core": "workspace:*",
+    "@agent-runtime/provider-agentcore": "workspace:*",
+    "@agent-runtime/provider-managed-agents": "workspace:*",
+    "@agent-runtime/store-postgres": "workspace:*",
+    "@anthropic-ai/sdk": "^0.137.0",
+    "express": "^5.1.0",
+    "pg": "^8.13.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/pg": "^8.11.10",
+    "@types/ws": "^8.5.13",
+    "tsx": "^4.19.0"
+  }
+}

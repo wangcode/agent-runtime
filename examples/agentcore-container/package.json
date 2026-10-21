@@ -1,0 +1,16 @@
+{
+  "name": "@agent-runtime/example-agentcore-container",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/server.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@agent-runtime/agentcore-runtime": "workspace:*",
+    "@anthropic-ai/claude-agent-sdk": "^0.3.305"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0"
+  }
+}

@@ -226,6 +226,21 @@ describe('approvals', () => {
     await expect(remote?.resolveApproval(approvalId, 'deny')).rejects.toThrow(/already resolved/)
   })
 
+  it('falls back to asking when the policy throws', async () => {
+    const { runtime, fake } = setup({
+      approvals: {
+        policy: () => {
+          throw new Error('policy bug')
+        },
+      },
+    })
+    const session = await runtime.createSession({ provider: 'fake', config: {} })
+    await session.send('x')
+    fake.emit(session.id, approvalRequest)
+    await collect(session.events(), (e) => e.type === 'approval.requested')
+    expect(await session.pendingApprovals()).toHaveLength(1)
+  })
+
   it('applies the default decision when an approval times out', async () => {
     const { runtime, fake } = setup({ approvals: { timeoutMs: 100 } })
     const session = await runtime.createSession({ provider: 'fake', config: {} })
