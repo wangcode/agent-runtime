@@ -181,10 +181,14 @@ export class ClaudeAgentSdkDriver implements AgentDriver {
     })()
 
     return {
-      async sendMessage(content) {
+      async sendMessage(content, opts) {
         if (closed) throw new Error('session closed')
         mapper.setStatus('running')
-        input.push({ type: 'user', message: { role: 'user', content: content as never }, parent_tool_use_id: null })
+        // The SDK has no mid-conversation system role; carry the context as a reminder block, the way
+        // Claude Code does. It stays in the transcript, so it applies to later turns too.
+        const system = opts?.system?.map((b) => (b.type === 'text' ? String(b.text) : '')).join('\n')
+        const blocks = system ? [...content, { type: 'text', text: `<system-reminder>\n${system}\n</system-reminder>` }] : content
+        input.push({ type: 'user', message: { role: 'user', content: blocks as never }, parent_tool_use_id: null })
       },
       async interrupt() {
         mapper.interrupted = true

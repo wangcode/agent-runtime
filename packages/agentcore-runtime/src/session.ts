@@ -99,7 +99,7 @@ export class ContainerSession {
       switch (cmd.type) {
         case 'user_message':
           await this.start()
-          await this.handle?.sendMessage(cmd.content)
+          await this.handle?.sendMessage(cmd.content, cmd.system ? { system: cmd.system } : undefined)
           break
         case 'interrupt':
           await this.handle?.interrupt()

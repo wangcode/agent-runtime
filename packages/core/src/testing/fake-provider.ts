@@ -7,12 +7,13 @@ import type {
   ProviderAdapter,
   ProviderContext,
   ProviderOutput,
+  SendMessageOptions,
   ToolResult,
 } from '../provider.js'
 import { AsyncQueue } from '../util.js'
 
 export type FakeCall =
-  | { method: 'sendMessage'; sessionId: string; content: ContentBlock[] }
+  | { method: 'sendMessage'; sessionId: string; content: ContentBlock[]; system?: ContentBlock[] }
   | { method: 'interrupt'; sessionId: string }
   | { method: 'submitToolResult'; sessionId: string; requestId: string; result: ToolResult }
   | { method: 'submitApproval'; sessionId: string; requestId: string; decision: ApprovalDecision }
@@ -24,10 +25,10 @@ export type FakeCall =
  */
 export class FakeProvider implements ProviderAdapter {
   readonly name = 'fake'
-  capabilities: ProviderCapabilities = { approvalUpdatedInput: true, thinkingContent: 'full', turnCost: true }
+  capabilities: ProviderCapabilities = { approvalUpdatedInput: true, thinkingContent: 'full', turnCost: true, systemMessages: 'native' }
   readonly calls: FakeCall[] = []
   readonly connections: Array<{ sessionId: string; cursor: unknown }> = []
-  onSend?: (sessionId: string, content: ContentBlock[], provider: FakeProvider) => void | Promise<void>
+  onSend?: (sessionId: string, content: ContentBlock[], provider: FakeProvider, opts: SendMessageOptions) => void | Promise<void>
   onToolResult?: (sessionId: string, requestId: string, result: ToolResult, provider: FakeProvider) => void
   onApproval?: (sessionId: string, requestId: string, decision: ApprovalDecision, provider: FakeProvider) => void
   private queues = new Map<string, AsyncQueue<ProviderOutput>>()
@@ -70,9 +71,9 @@ export class FakeProvider implements ProviderAdapter {
     return !!q && !q.isClosed
   }
 
-  async sendMessage(ctx: ProviderContext, content: ContentBlock[]) {
-    this.calls.push({ method: 'sendMessage', sessionId: ctx.sessionId, content })
-    await this.onSend?.(ctx.sessionId, content, this)
+  async sendMessage(ctx: ProviderContext, content: ContentBlock[], opts: SendMessageOptions = {}) {
+    this.calls.push({ method: 'sendMessage', sessionId: ctx.sessionId, content, ...(opts.system ? { system: opts.system } : {}) })
+    await this.onSend?.(ctx.sessionId, content, this, opts)
   }
 
   async interrupt(ctx: ProviderContext) {

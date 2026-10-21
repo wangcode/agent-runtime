@@ -72,12 +72,28 @@ A lightweight handle; create as many as you like. Every method works on every in
 
 | Method | Returns | Description |
 | --- | --- | --- |
-| `send(input)` | `Promise<void>` | Send a user message: a string, `ContentBlock[]`, or `{ content }`. Resolves once the provider accepted it; replies arrive as events. Allowed during a turn |
+| `send(input, opts?)` | `Promise<void>` | Send a user message: a string, `ContentBlock[]`, or `{ content }`. Resolves once the provider accepted it; replies arrive as events. Allowed during a turn. `opts.system` (string or text blocks) adds system-level context; see below |
 | `interrupt()` | `Promise<void>` | Stop the current turn. It ends with `stopReason: 'interrupted'` |
 | `resolveApproval(approvalId, decision, message?)` | `Promise<void>` | `decision`: `'allow'`, `'deny'`, or `{ behavior, message?, updatedInput? }` |
 | `pendingApprovals()` | `Promise<ActionRecord[]>` | Approvals waiting for a human: `id` (the approval id), `toolUseId`, `name`, `input`, `expiresAt` |
 | `terminate()` | `Promise<void>` | End the session, including at the provider |
 | `capabilities()` | `Promise<ProviderCapabilities>` | This session's provider capabilities |
+
+#### System-level context
+
+```ts
+await session.send('Summarise the ticket', { system: 'The user is on the Enterprise plan. Answer in French.' })
+```
+
+`system` adds context for this turn **and all later turns** without replacing the agent's system
+prompt. It is stored on the `user.message` event (`data.system`). Only text is allowed; other blocks
+throw `TypeError`. How it reaches the model depends on `capabilities().systemMessages`:
+
+- `native` (Managed Agents): sent as a `system.message` event. Only models that accept
+  mid-conversation system messages support it; others reject the send with a `CommandError`.
+- `emulated` (Agent SDK on AgentCore): appended to the user message as a
+  `<system-reminder>…</system-reminder>` text block. It stays in the transcript, so it also applies
+  to later turns.
 | `info()` | `Promise<SessionRecord>` | `id`, `provider`, `providerSessionId`, `status`, `metadata`, `ownerInstance`, `lastSeq`, `createdAt`, `updatedAt`, … |
 | `events(options?)` | `AsyncGenerator<RuntimeEvent>` | See below |
 

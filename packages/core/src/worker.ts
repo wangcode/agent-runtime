@@ -329,16 +329,16 @@ export class SessionWorker {
     try {
       switch (cmd.kind) {
         case 'send': {
-          const { content } = cmd.payload as { content: import('./events.js').ContentBlock[] }
+          const { content, system } = cmd.payload as { content: import('./events.js').ContentBlock[]; system?: import('./events.js').ContentBlock[] }
           const startsTurn = this.status === 'idle'
-          await this.emit({ type: 'user.message', data: { content }, sourceId: `cmd:${cmd.id}` })
+          await this.emit({ type: 'user.message', data: system ? { content, system } : { content }, sourceId: `cmd:${cmd.id}` })
           if (startsTurn) {
             this.interruptRequested = false
             this.turnUsage = undefined
           }
           // The runtime starts the turn itself, so the timing is the same for every provider.
           await this.emit({ type: 'session.status', data: { status: 'running' }, sourceId: `cmd:${cmd.id}:running` })
-          await this.adapter.sendMessage(this.ctx, content)
+          await this.adapter.sendMessage(this.ctx, content, system ? { system } : undefined)
           break
         }
         case 'interrupt':

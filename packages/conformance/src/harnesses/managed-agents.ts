@@ -39,6 +39,10 @@ class FakeManagedAgents {
             })()
           },
           send: async (_id: string, params: { events: Ev[] }) => {
+            const sys = params.events.findIndex((e) => e.type === 'system.message')
+            if (sys !== -1 && (sys !== params.events.length - 1 || params.events[sys - 1]?.type !== 'user.message')) {
+              throw new Error('system.message must be the final event, right after a user.message')
+            }
             for (const e of params.events) this.onUserEvent(e)
           },
         },
@@ -71,6 +75,8 @@ class FakeManagedAgents {
     if (e.type === 'user.message') {
       const steps = this.script.turn(this.turnIndex++)
       setTimeout(() => void this.play(steps), 1)
+    } else if (e.type === 'system.message') {
+      this.emit('system.message', { content: e.content }) // Managed Agents records it in the event log
     } else if (e.type === 'user.interrupt') {
       this.interrupted.resolve()
     } else if (e.type === 'user.custom_tool_result') {

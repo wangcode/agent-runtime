@@ -338,6 +338,23 @@ describe('Claude Agent SDK driver', () => {
     expect(await store.hasTranscript(sdkSessionIdFor(session.id))).toBe(true)
   })
 
+  it('emulates system context as a <system-reminder> block on the user message', async () => {
+    const { sdk, seen } = mockSdk()
+    const server = await startServer(new ClaudeAgentSdkDriver({ sdk }))
+    const { runtime } = makeRuntime(server, { tools: { lookup: { description: 'l', inputSchema: { type: 'object' }, handler: () => 'ok' } }, approvals: { policy: () => 'allow' } })
+    const session = await runtime.createSession({ provider: 'ac', config: {} })
+    expect((await session.capabilities()).systemMessages).toBe('emulated')
+    await session.send('hi', { system: 'Answer in French' })
+    const events = await until(session, (e) => e.type === 'turn.completed', { includeDeltas: false })
+    expect(events.find((e) => e.type === 'user.message')?.data).toEqual({
+      content: [{ type: 'text', text: 'hi' }],
+      system: [{ type: 'text', text: 'Answer in French' }],
+    })
+    expect(seen.prompts[0]).toMatchObject({
+      message: { content: [{ type: 'text', text: 'hi' }, { type: 'text', text: '<system-reminder>\nAnswer in French\n</system-reminder>' }] },
+    })
+  })
+
   it('resumes the SDK session when a transcript already exists', async () => {
     const { sdk, seen } = mockSdk()
     const server = await startServer(new ClaudeAgentSdkDriver({ sdk }))

@@ -73,7 +73,7 @@ export async function runScenario(harness: Harness, scenario: Scenario, timeoutM
       const finished = new Promise<void>((resolve) => {
         turnDone = () => completedTurns > i && resolve()
       })
-      await session.send(turn.user)
+      await session.send(turn.user, turn.system ? { system: turn.system } : {})
       await Promise.race([finished, new Promise((_, reject) => abort.signal.addEventListener('abort', () => reject(new Error(`turn ${i} timed out`))))])
     }
     clearTimeout(deadline)

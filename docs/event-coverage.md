@@ -100,7 +100,8 @@ and `@anthropic-ai/sdk` 0.137.
 | `span.model_request_end` | mapped | token counts summed into `turn.completed.usage` |
 | `session.usage` | mapped | cumulative cost → per-turn `turn.completed.usage.costUsd` |
 | `user.message`, `user.interrupt`, `user.custom_tool_result`, `user.tool_confirmation`, `user.tool_result` | ignored | echoes; the runtime records `user.message`, `tool.result`, and `approval.resolved` itself |
-| `user.define_outcome`, `system.message` | custom | |
+| `system.message` | ignored | echo of `send(…, { system })`, which the runtime records on `user.message` |
+| `user.define_outcome` | custom | |
 | `agent.thread_context_compacted`, `agent.thread_message_received`, `agent.thread_message_sent` | custom | |
 | `session.status_rescheduled`, `session.updated` | custom | |
 | `session.thread_created`, `session.thread_status_*` | custom | |

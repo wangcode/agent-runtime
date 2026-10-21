@@ -19,6 +19,8 @@ export type AgentStep =
 
 export interface Turn {
   user: string
+  /** Sent as `send(user, { system })`. */
+  system?: string
   agent: AgentStep[]
 }
 
@@ -85,6 +87,10 @@ export const SCENARIOS: Scenario[] = [
       { user: 'two', agent: [{ kind: 'text', text: 'Second answer.' }, { kind: 'end', usage: { inputTokens: 20, outputTokens: 7, costUsd: 0.03 } }] },
     ],
   },
+  {
+    name: 'send with system context',
+    turns: [{ user: 'hi', system: 'Answer in French.', agent: [{ kind: 'text', text: 'Bonjour !' }, { kind: 'end', usage }] }],
+  },
 ]
 
 /** The custom tool every harness registers. */
@@ -103,7 +109,11 @@ export function expectedEvents(scenario: Scenario): NormalizedEvent[] {
   let t = 0
   let a = 0
   for (const turn of scenario.turns) {
-    out.push({ type: 'user.message', data: { content: [{ type: 'text', text: turn.user }] } }, { type: 'session.status', data: { status: 'running' } })
+    const content = [{ type: 'text', text: turn.user }]
+    out.push(
+      { type: 'user.message', data: turn.system ? { content, system: [{ type: 'text', text: turn.system }] } : { content } },
+      { type: 'session.status', data: { status: 'running' } },
+    )
     let interrupted = false
     for (const step of turn.agent) {
       switch (step.kind) {

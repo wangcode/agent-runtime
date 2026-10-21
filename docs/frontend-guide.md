@@ -184,6 +184,7 @@ short:
 | "Agent is working" indicator | `status === 'running'` |
 | Stop button | enabled while `status !== 'idle'`; calls `POST /interrupt` |
 | Input box | always enabled. A message sent during a turn is delivered to the agent |
+| User messages | `user.message` `content`. Skip `system` (backend-supplied context, not typed by the user) |
 | Sub-agent activity | events with `threadId` belong to a sub-agent; group or indent them |
 
 ## 4. Approvals

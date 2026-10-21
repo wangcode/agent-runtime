@@ -298,6 +298,14 @@ export class Runtime {
 
 export type SendInput = string | ContentBlock[] | { content: ContentBlock[] }
 
+export interface SendOptions {
+  /**
+   * System-level context appended to the conversation for this and all later turns. It does not
+   * replace the agent's system prompt. Text only. See `capabilities().systemMessages`.
+   */
+  system?: string | ContentBlock[]
+}
+
 /** Handle to a session; cheap to create, usable from any instance. */
 export class Session {
   constructor(
@@ -312,9 +320,11 @@ export class Session {
   }
 
   /** Send a user message. Resolves once the owning instance handed it to the provider. */
-  send(input: SendInput): Promise<void> {
+  async send(input: SendInput, opts: SendOptions = {}): Promise<void> {
     const content = typeof input === 'string' ? [{ type: 'text', text: input }] : Array.isArray(input) ? input : input.content
-    return this.runtime._dispatch(this.id, 'send', { content })
+    const system = typeof opts.system === 'string' ? [{ type: 'text', text: opts.system }] : opts.system
+    if (system?.some((b) => b.type !== 'text')) throw new TypeError('send(): `system` must contain only text blocks')
+    return this.runtime._dispatch(this.id, 'send', system?.length ? { content, system } : { content })
   }
 
   interrupt(): Promise<void> {

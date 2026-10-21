@@ -72,6 +72,7 @@ Where a provider genuinely cannot do something, the difference is a declared
 | `approvalUpdatedInput` | Approvals may change the tool's input | `false`, not supported | `false` by default; `true` with `allowUpdatedInput: true` |
 | `thinkingContent` | `full`: thinking text is complete. `best_effort`: assembled from live deltas, may be partial after a reconnect | `best_effort` | `full` |
 | `turnCost` | `turn.completed.usage.costUsd` is reported | `true` | `true` |
+| `systemMessages` | How `send(…, { system })` is delivered. `native`: a real system-role message. `emulated`: a `<system-reminder>` block appended to the user message | `native` | `emulated` |
 
 ## Open questions
 

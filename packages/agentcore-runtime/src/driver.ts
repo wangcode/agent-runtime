@@ -29,7 +29,8 @@ export interface DriverSession {
 }
 
 export interface DriverHandle {
-  sendMessage(content: ContentBlock[]): Promise<void>
+  /** `system`: context to add for this and later turns; the driver decides how its framework carries it. */
+  sendMessage(content: ContentBlock[], opts?: { system?: ContentBlock[] }): Promise<void>
   interrupt(): Promise<void>
   close(): Promise<void>
 }

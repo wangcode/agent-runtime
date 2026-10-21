@@ -9,6 +9,7 @@ import {
   type ProviderCapabilities,
   type ProviderContext,
   type ProviderOutput,
+  type SendMessageOptions,
   type ToolResult,
   type TranscriptStore,
   CapabilityError,
@@ -87,7 +88,7 @@ export class AgentCoreProvider implements ProviderAdapter<AgentCoreSessionConfig
   constructor(private readonly opts: AgentCoreOptions) {
     if (!opts.endpoint && !opts.connectWebSocket) throw new Error('AgentCoreProvider needs `endpoint` or `connectWebSocket`')
     this.logger = opts.logger ?? noopLogger
-    this.capabilities = { approvalUpdatedInput: opts.allowUpdatedInput === true, thinkingContent: 'full', turnCost: true }
+    this.capabilities = { approvalUpdatedInput: opts.allowUpdatedInput === true, thinkingContent: 'full', turnCost: true, systemMessages: 'emulated' }
   }
 
   async createSession(input: { sessionId: string }) {
@@ -129,8 +130,8 @@ export class AgentCoreProvider implements ProviderAdapter<AgentCoreSessionConfig
     }
   }
 
-  async sendMessage(ctx: ProviderContext<AgentCoreSessionConfig>, content: ContentBlock[]) {
-    await this.command(ctx, { type: 'user_message', id: newId(), content })
+  async sendMessage(ctx: ProviderContext<AgentCoreSessionConfig>, content: ContentBlock[], opts: SendMessageOptions = {}) {
+    await this.command(ctx, { type: 'user_message', id: newId(), content, ...(opts.system?.length ? { system: opts.system } : {}) })
   }
 
   async interrupt(ctx: ProviderContext<AgentCoreSessionConfig>) {

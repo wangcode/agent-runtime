@@ -97,12 +97,13 @@ so a different instance can resume after a takeover.
 | Runtime call | Managed Agents event |
 | --- | --- |
 | `session.send(content)` | `user.message` |
+| `session.send(content, { system })` | `user.message` followed by `system.message` in the same request (the API requires it to be the last event, right after the message it accompanies). Only models that accept mid-conversation system messages support it; others reject the send, which fails `send()` with `CommandError` |
 | `session.interrupt()` | `user.interrupt` |
 | custom tool handler finished | `user.custom_tool_result` (`custom_tool_use_id`, `content`, `is_error`) |
 | approval decided | `user.tool_confirmation` (`tool_use_id`, `result`, `deny_message`) |
 | `session.terminate()` | `sessions.archive()` by default (`onTerminate: 'delete' \| 'none'` to change) |
 
-Echoes of these `user.*` events from the stream are ignored, because the runtime records its own
+Echoes of these `user.*` and `system.message` events from the stream are ignored, because the runtime records its own
 `user.message` and result events.
 
 ## Event mapping
@@ -140,6 +141,7 @@ Notable details:
 | --- | --- | --- |
 | `approvalUpdatedInput` | `false` | `user.tool_confirmation` can only allow or deny; changing the input is not possible |
 | `thinkingContent` | `best_effort` | `agent.thinking` events carry no text. The provider always subscribes to thinking deltas and assembles them, but deltas are not replayed, so thinking can be partial after a reconnect |
+| `systemMessages` | `native` | `send(…, { system })` becomes a `system.message` event |
 | `turnCost` | `true` | `session.usage` reports a cumulative list cost; the provider turns it into a per-turn `costUsd` (kept in the cursor, so it survives reconnects and takeovers) |
 
 ## Options

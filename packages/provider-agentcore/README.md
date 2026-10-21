@@ -80,7 +80,7 @@ runtime.
 
 ## Capabilities
 
-`approvalUpdatedInput`: the value of `allowUpdatedInput`. `thinkingContent`: `full`. `turnCost`: `true`. See the [behaviour spec](../../docs/behavior-spec.md#capabilities).
+`approvalUpdatedInput`: the value of `allowUpdatedInput`. `thinkingContent`: `full`. `turnCost`: `true`. `systemMessages`: `emulated` (the container driver decides how; the Claude Agent SDK driver adds a `<system-reminder>` block). See the [behaviour spec](../../docs/behavior-spec.md#capabilities).
 
 ## Exports
 

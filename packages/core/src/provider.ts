@@ -75,6 +75,16 @@ export interface ProviderCapabilities {
   thinkingContent: 'full' | 'best_effort'
   /** `turn.completed.usage.costUsd` is provided. */
   turnCost: boolean
+  /**
+   * How `send(…, { system })` is delivered. `native`: a real system-role message the provider keeps
+   * for this and later turns. `emulated`: added to the user message as a `<system-reminder>` block.
+   */
+  systemMessages: 'native' | 'emulated'
+}
+
+export interface SendMessageOptions {
+  /** System-level context to append for this and later turns; text blocks only. */
+  system?: ContentBlock[]
 }
 
 export class CapabilityError extends Error {
@@ -97,7 +107,7 @@ export interface ProviderAdapter<Config = unknown> {
    * the runtime retry `connect()` with backoff.
    */
   connect(ctx: ConnectContext<Config>): AsyncIterable<ProviderOutput>
-  sendMessage(ctx: ProviderContext<Config>, content: ContentBlock[]): Promise<void>
+  sendMessage(ctx: ProviderContext<Config>, content: ContentBlock[], opts?: SendMessageOptions): Promise<void>
   interrupt(ctx: ProviderContext<Config>): Promise<void>
   submitToolResult(ctx: ProviderContext<Config>, requestId: string, result: ToolResult): Promise<void>
   submitApproval(ctx: ProviderContext<Config>, requestId: string, decision: ApprovalDecision): Promise<void>

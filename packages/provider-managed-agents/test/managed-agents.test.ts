@@ -253,7 +253,7 @@ describe('ManagedAgentsProvider', () => {
     await provider.submitApproval(c, 'tu_1', { behavior: 'deny', message: 'nope' })
     await provider.submitApproval(c, 'tu_2', { behavior: 'allow', message: 'ignored' })
     await expect(provider.submitApproval(c, 'tu_3', { behavior: 'allow', updatedInput: { x: 1 } })).rejects.toThrow(/cannot change tool input/)
-    expect(provider.capabilities).toEqual({ approvalUpdatedInput: false, thinkingContent: 'best_effort', turnCost: true })
+    expect(provider.capabilities).toEqual({ approvalUpdatedInput: false, thinkingContent: 'best_effort', turnCost: true, systemMessages: 'native' })
     await provider.terminate(c)
     expect(sessions.sent.map((s) => s.events[0])).toEqual([
       { type: 'user.message', content: [{ type: 'text', text: 'hi' }] },
@@ -263,6 +263,17 @@ describe('ManagedAgentsProvider', () => {
       { type: 'user.tool_confirmation', tool_use_id: 'tu_2', result: 'allow' },
     ])
     expect(sessions.archived).toEqual(['sesn_1'])
+    expect(sessions.sent[0]?.events).toHaveLength(1)
+  })
+
+  it('sends system context as a system.message right after the user.message', async () => {
+    const sessions = new MockSessions()
+    const provider = new ManagedAgentsProvider({ client: mockClient(sessions) })
+    await provider.sendMessage(ctx(new AbortController().signal), [{ type: 'text', text: 'hi' }], { system: [{ type: 'text', text: 'Be brief' }] })
+    expect(sessions.sent[0]?.events).toEqual([
+      { type: 'user.message', content: [{ type: 'text', text: 'hi' }] },
+      { type: 'system.message', content: [{ type: 'text', text: 'Be brief' }] },
+    ])
   })
 
   it('runs end-to-end through the runtime with a custom tool', async () => {

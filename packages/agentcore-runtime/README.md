@@ -83,6 +83,8 @@ What it does:
   policy, and reports `requires_action` while waiting. A decision's `updatedInput` is applied only
   when the caller enabled it (`agentCore({ allowUpdatedInput: true })`, sent as
   `session.features`).
+- **System context.** `send(…, { system })` arrives as `sendMessage(content, { system })`; the
+  text is appended to the user message as a `<system-reminder>…</system-reminder>` block.
 - **Sub-agents.** Messages with `parent_tool_use_id` get `threadId` set to it.
 - **Resume.** Uses a stable SDK session id derived from the runtime session id: a new session
   (`sessionId`) the first time, and `resume` once a transcript exists.

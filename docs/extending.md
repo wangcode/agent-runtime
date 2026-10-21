@@ -26,14 +26,14 @@ behaviour rules. A provider only **translates** between the remote API and the r
 import {
   CapabilityError,
   type ApprovalDecision, type ConnectContext, type ContentBlock, type ProviderAdapter,
-  type ProviderCapabilities, type ProviderContext, type ProviderOutput, type ToolResult,
+  type ProviderCapabilities, type ProviderContext, type ProviderOutput, type SendMessageOptions, type ToolResult,
 } from '@agent-runtime/core'
 
 export interface MyConfig { agentId: string }
 
 export class MyProvider implements ProviderAdapter<MyConfig> {
   readonly name = 'my-provider'
-  readonly capabilities: ProviderCapabilities = { approvalUpdatedInput: false, thinkingContent: 'full', turnCost: false }
+  readonly capabilities: ProviderCapabilities = { approvalUpdatedInput: false, thinkingContent: 'full', turnCost: false, systemMessages: 'emulated' }
 
   constructor(private readonly api: MyApiClient) {}
 
@@ -46,8 +46,10 @@ export class MyProvider implements ProviderAdapter<MyConfig> {
     // See step 2.
   }
 
-  async sendMessage(ctx: ProviderContext<MyConfig>, content: ContentBlock[]) {
-    await this.api.send(ctx.providerSessionId, { role: 'user', content })
+  async sendMessage(ctx: ProviderContext<MyConfig>, content: ContentBlock[], opts?: SendMessageOptions) {
+    // No system role in this API: carry `opts.system` as a reminder block (systemMessages: 'emulated').
+    const system = opts?.system?.map((b) => `<system-reminder>\n${b.type === 'text' ? b.text : ''}\n</system-reminder>`) ?? []
+    await this.api.send(ctx.providerSessionId, { role: 'user', content: [...content, ...system.map((text) => ({ type: 'text', text }))] })
   }
   async interrupt(ctx: ProviderContext<MyConfig>) {
     await this.api.cancel(ctx.providerSessionId)
@@ -70,7 +72,7 @@ export class MyProvider implements ProviderAdapter<MyConfig> {
 | `capabilities` | Declare truthfully; see [capabilities](behavior-spec.md#capabilities) |
 | `createSession` | Create the remote session. Return its id and an optional initial cursor. Called once |
 | `connect(ctx)` | Long-lived stream of outputs (step 2). Called on the owner; called again after a reconnect or takeover |
-| `sendMessage` | Deliver a user message. Throwing fails the caller's `send()` with `CommandError` |
+| `sendMessage` | Deliver a user message, plus `opts.system` (text-only system context) if given; declare `systemMessages` accordingly. Throwing fails the caller's `send()` with `CommandError` |
 | `interrupt` | Ask the agent to stop the current turn. The runtime sets `stopReason: 'interrupted'` itself |
 | `submitToolResult` | Answer a `tool_request` you yielded, identified by your `requestId` |
 | `submitApproval` | Answer an `approval_request`. May be called more than once for the same request after a crash; must be safe |

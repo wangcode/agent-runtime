@@ -72,6 +72,7 @@ API or Console.
   even when `deltas: false`.
 - **Usage:** token counts from `span.model_request_end` and cost from the cumulative
   `session.usage` are summed per turn into `turn.completed.usage`.
+- **System context:** `send(…, { system })` sends `user.message` followed by `system.message`.
 - **Interrupts:** `user.interrupt`; the runtime reports the turn as `interrupted`.
 - **Deleted sessions:** a 404 from the API marks the session `terminated`.
 
@@ -80,7 +81,7 @@ Event mapping, API-call costs, and open design questions are described in
 
 ## Capabilities
 
-`approvalUpdatedInput`: `false` (Managed Agents can only allow or deny). `thinkingContent`: `best_effort` (assembled from deltas). `turnCost`: `true`. See the [behaviour spec](../../docs/behavior-spec.md#capabilities).
+`approvalUpdatedInput`: `false` (Managed Agents can only allow or deny). `thinkingContent`: `best_effort` (assembled from deltas). `turnCost`: `true`. `systemMessages`: `native` (`send(…, { system })` sends a `system.message` event). See the [behaviour spec](../../docs/behavior-spec.md#capabilities).
 
 ## Exports
 

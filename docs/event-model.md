@@ -110,9 +110,10 @@ The provider reported a problem. The session may continue.
 
 A message you sent with `session.send()`.
 
-| Field | Type |
-| --- | --- |
-| `content` | `ContentBlock[]` |
+| Field | Type | Description |
+| --- | --- | --- |
+| `content` | `ContentBlock[]` | What the user said |
+| `system` | `ContentBlock[]`, optional | System-level context sent with the message (`send(…, { system })`). Text blocks only. Not something the user typed, so UIs usually don't show it |
 
 ### `message.start` *(live)*
 

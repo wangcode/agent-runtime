@@ -38,7 +38,7 @@ export const MA_EVENT_COVERAGE = {
   'user.tool_confirmation': 'ignored', // runtime writes approval.resolved
   'user.tool_result': 'ignored', // self-hosted environments only
   'user.define_outcome': 'custom', // not sent by the runtime
-  'system.message': 'custom', // not sent by the runtime
+  'system.message': 'ignored', // echo of send(…, { system }); recorded on user.message
 
   // Agent events.
   'agent.message': 'mapped', // -> message.completed

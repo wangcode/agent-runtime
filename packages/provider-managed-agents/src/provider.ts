@@ -9,6 +9,7 @@ import {
   type ProviderCapabilities,
   type ProviderContext,
   type ProviderOutput,
+  type SendMessageOptions,
   type ToolResult,
   CapabilityError,
   backoff,
@@ -81,7 +82,12 @@ export class ManagedAgentsProvider implements ProviderAdapter<ManagedAgentsSessi
    * - Approvals cannot change tool input: `user.tool_confirmation` only allows or denies.
    * - Thinking text exists only in live deltas, so it can be partial after a reconnect.
    */
-  readonly capabilities: ProviderCapabilities = { approvalUpdatedInput: false, thinkingContent: 'best_effort', turnCost: true }
+  readonly capabilities: ProviderCapabilities = {
+    approvalUpdatedInput: false,
+    thinkingContent: 'best_effort',
+    turnCost: true,
+    systemMessages: 'native',
+  }
   private readonly client: Anthropic
   private readonly opts: Required<Omit<ManagedAgentsOptions, 'client' | 'reconnect' | 'logger'>> & {
     reconnect: { baseMs: number; maxMs: number }
@@ -183,9 +189,13 @@ export class ManagedAgentsProvider implements ProviderAdapter<ManagedAgentsSessi
     }
   }
 
-  async sendMessage(ctx: ProviderContext<ManagedAgentsSessionConfig>, content: ContentBlock[]) {
+  async sendMessage(ctx: ProviderContext<ManagedAgentsSessionConfig>, content: ContentBlock[], opts: SendMessageOptions = {}) {
+    // A system.message must be the last event, right after the user.message it accompanies.
     await this.client.beta.sessions.events.send(ctx.providerSessionId, {
-      events: [{ type: 'user.message', content: toMAContent(content) }],
+      events: [
+        { type: 'user.message', content: toMAContent(content) },
+        ...(opts.system?.length ? [{ type: 'system.message' as const, content: toMAContent(opts.system) }] : []),
+      ],
     })
   }
 

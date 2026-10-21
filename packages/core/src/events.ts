@@ -31,7 +31,11 @@ export interface EventPayloads {
   'session.created': { provider: string; providerSessionId: string; metadata: Record<string, unknown> }
   'session.status': { status: SessionStatus; reason?: string }
   'session.error': { message: string; code?: string; retryable?: boolean }
-  'user.message': { content: ContentBlock[] }
+  'user.message': {
+    content: ContentBlock[]
+    /** System-level context sent with this message (`send(…, { system })`); text blocks only. */
+    system?: ContentBlock[]
+  }
   'message.start': { messageId: string; kind: 'text' | 'thinking' }
   'text.delta': { messageId: string; text: string; index?: number }
   'thinking.delta': { messageId: string; text: string }

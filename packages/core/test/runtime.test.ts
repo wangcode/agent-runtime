@@ -407,6 +407,21 @@ describe('behaviour normalization', () => {
     expect(msg?.threadId).toBe('sub_1')
   })
 
+  it('sends system context with a message and records it on user.message', async () => {
+    const { runtime, fake } = setup()
+    agentReplies(fake, 'ok')
+    const session = await runtime.createSession({ provider: 'fake', config: {} })
+    const events = collect(session.events(), (e) => e.type === 'turn.completed')
+    await session.send('hi', { system: 'Be brief' })
+    const user = (await events).find((e) => e.type === 'user.message')
+    expect(user?.data).toEqual({ content: [{ type: 'text', text: 'hi' }], system: [{ type: 'text', text: 'Be brief' }] })
+    expect(fake.calls.find((c) => c.method === 'sendMessage')).toMatchObject({ system: [{ type: 'text', text: 'Be brief' }] })
+    await expect(session.send('x', { system: [{ type: 'image', source: {} } as never] })).rejects.toBeInstanceOf(TypeError)
+    await session.send('plain')
+    const plain = (await collect(session.events(), (e) => e.type === 'user.message' && JSON.stringify(e.data).includes('plain'))).at(-1)
+    expect(plain?.data).toEqual({ content: [{ type: 'text', text: 'plain' }] })
+  })
+
   it('rejects updatedInput when the provider does not support it, from callers and policies', async () => {
     const { runtime, fake } = setup({ approvals: { policy: () => ({ decision: 'allow', updatedInput: { safe: true } }) } })
     fake.capabilities = { ...fake.capabilities, approvalUpdatedInput: false }

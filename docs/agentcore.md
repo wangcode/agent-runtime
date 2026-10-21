@@ -113,6 +113,7 @@ AgentCore requires **ARM64** images.
 | Permissions | `canUseTool` forwards to your backend's approval policy; the session shows `requires_action` while waiting |
 | Bedrock | Configure through `env` (`CLAUDE_CODE_USE_BEDROCK=1`, `AWS_REGION`, optional `ANTHROPIC_DEFAULT_*_MODEL`) |
 | Resume | The SDK session id is derived from the runtime session id. The transcript is stored through `sessionStore`; if a transcript exists when a new microVM starts, the SDK resumes it |
+| System context | The SDK has no mid-conversation system role, so `send(…, { system })` appends a `<system-reminder>…</system-reminder>` text block to the user message (`systemMessages: 'emulated'`). It stays in the transcript and applies to later turns |
 | Interrupt | `query.interrupt()`; the turn ends with `stopReason: 'interrupted'` |
 | Approving with modified input | Supported by the SDK, but **off by default**: enable with `agentCore({ allowUpdatedInput: true })`. The setting is sent to the container, which ignores `updatedInput` unless it is enabled |
 | Sub-agents | Messages from sub-agents carry `threadId` (the id of the Task tool call that started them) |

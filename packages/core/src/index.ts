@@ -12,5 +12,6 @@ export {
   type CreateSessionInput,
   type EventsOptions,
   type SendInput,
+  type SendOptions,
 } from './runtime.js'
 export { abortable, AsyncQueue, Notifier, backoff, sleep, newId, errorMessage, deferred, noopLogger, type Logger, type Deferred } from './util.js'

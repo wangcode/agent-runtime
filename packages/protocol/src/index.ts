@@ -35,7 +35,7 @@ export interface HelloMessage {
 }
 
 export type ClientCommand =
-  | { type: 'user_message'; id: string; content: ContentBlock[] }
+  | { type: 'user_message'; id: string; content: ContentBlock[]; system?: ContentBlock[] }
   | { type: 'interrupt'; id: string }
   | { type: 'tool_result'; id: string; requestId: string; result: ToolResult }
   | { type: 'approval_decision'; id: string; requestId: string; decision: ApprovalDecision }
