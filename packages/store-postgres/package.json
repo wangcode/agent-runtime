@@ -15,8 +15,7 @@
     }
   },
   "files": [
-    "dist",
-    "migrations"
+    "dist"
   ],
   "scripts": {
     "build": "tsup",
