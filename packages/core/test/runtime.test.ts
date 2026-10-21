@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { firstValueFrom, filter, take, toArray } from 'rxjs'
-import { MemoryBus, MemoryStore, type Runtime, type RuntimeEvent, type RuntimeOptions, createRuntime } from '@agent-runtime/core'
+import { CapabilityError, MemoryBus, MemoryStore, type Runtime, type RuntimeEvent, type RuntimeOptions, createRuntime } from '@agent-runtime/core'
 import { toObservable } from '@agent-runtime/core/rxjs'
 import { FakeProvider } from '@agent-runtime/core/testing'
 
@@ -19,6 +19,7 @@ function setup(overrides: Partial<RuntimeOptions> = {}, shared?: { store: Memory
     idleReleaseMs: 200,
     lease: { ttlMs: 300, renewIntervalMs: 100 },
     reconnect: { baseMs: 10, maxMs: 50 },
+    toolCallWaitMs: 20,
     ...overrides,
   })
   runtimes.push(runtime)
@@ -335,5 +336,98 @@ describe('multi-instance', () => {
     expect(events.at(-1)).toMatchObject({ type: 'session.status', data: { status: 'terminated' } })
     expect(fake.calls.at(-1)?.method).toBe('terminate')
     await expect(session.send('x')).rejects.toThrow(/terminated/)
+  })
+})
+
+describe('behaviour normalization', () => {
+  const ev = (event: object) => ({ kind: 'event' as const, event: event as never })
+
+  it('ends every turn with idle then turn.completed, without repeated statuses', async () => {
+    const { runtime, fake } = setup()
+    fake.onSend = (sid) =>
+      fake.emit(
+        sid,
+        ev({ type: 'session.status', data: { status: 'running' } }),
+        ev({ type: 'session.status', data: { status: 'running' } }),
+        ev({ type: 'turn.completed', data: { stopReason: 'end_turn' } }),
+      )
+    const session = await runtime.createSession({ provider: 'fake', config: {} })
+    await session.send('x')
+    const types = (await collect(session.events({ includeDeltas: false }), (e) => e.type === 'turn.completed')).map((e) =>
+      e.type === 'session.status' ? `status:${e.data.status}` : e.type,
+    )
+    expect(types).toEqual(['session.created', 'user.message', 'status:running', 'status:idle', 'turn.completed'])
+  })
+
+  it('reports interrupted for a turn that was interrupted, whatever the provider said', async () => {
+    const { runtime, fake } = setup()
+    const session = await runtime.createSession({ provider: 'fake', config: {} })
+    await session.send('long task')
+    await session.interrupt()
+    fake.emit(session.id, ev({ type: 'turn.completed', data: { stopReason: 'end_turn' } }))
+    const done = (await collect(session.events(), (e) => e.type === 'turn.completed')).at(-1)
+    expect(done).toMatchObject({ data: { stopReason: 'interrupted' } })
+
+    // The next turn is not affected.
+    fake.onSend = (sid) => fake.emit(sid, ev({ type: 'turn.completed', data: { stopReason: 'end_turn' } }))
+    await session.send('again')
+    const next = (await collect(session.events({ after: done!.seq }), (e) => e.type === 'turn.completed')).at(-1)
+    expect(next).toMatchObject({ data: { stopReason: 'end_turn' } })
+  })
+
+  it('sums per-request usage into turn.completed, unless the provider reports a turn total', async () => {
+    const { runtime, fake } = setup()
+    const session = await runtime.createSession({ provider: 'fake', config: {} })
+    await session.send('x')
+    fake.emit(
+      session.id,
+      { kind: 'usage', usage: { inputTokens: 10, outputTokens: 2 } },
+      { kind: 'usage', usage: { inputTokens: 5, outputTokens: 3, costUsd: 0.01 } },
+      ev({ type: 'turn.completed', data: { stopReason: 'end_turn' } }),
+    )
+    const first = (await collect(session.events(), (e) => e.type === 'turn.completed')).at(-1)
+    expect(first).toMatchObject({ data: { usage: { inputTokens: 15, outputTokens: 5, costUsd: 0.01 } } })
+
+    await session.send('y')
+    fake.emit(
+      session.id,
+      { kind: 'usage', usage: { inputTokens: 99 } },
+      ev({ type: 'turn.completed', data: { stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } } }),
+    )
+    const second = (await collect(session.events({ after: first!.seq }), (e) => e.type === 'turn.completed')).at(-1)
+    expect(second).toMatchObject({ data: { usage: { inputTokens: 1, outputTokens: 1 } } })
+  })
+
+  it('persists and streams thread attribution', async () => {
+    const { runtime, fake } = setup()
+    const session = await runtime.createSession({ provider: 'fake', config: {} })
+    await session.send('x')
+    fake.emit(session.id, ev({ type: 'message.completed', data: { messageId: 'm:0', content: [] }, threadId: 'sub_1' }))
+    const msg = (await collect(session.events(), (e) => e.type === 'message.completed')).at(-1)
+    expect(msg?.threadId).toBe('sub_1')
+  })
+
+  it('rejects updatedInput when the provider does not support it, from callers and policies', async () => {
+    const { runtime, fake } = setup({ approvals: { policy: () => ({ decision: 'allow', updatedInput: { safe: true } }) } })
+    fake.capabilities = { ...fake.capabilities, approvalUpdatedInput: false }
+    const session = await runtime.createSession({ provider: 'fake', config: {} })
+    expect(await session.capabilities()).toMatchObject({ approvalUpdatedInput: false })
+    await session.send('x')
+    fake.emit(session.id, { kind: 'approval_request', requestId: 'r', toolUseId: 't', name: 'bash', input: {} })
+    // The policy's updatedInput can't be honoured, so a human is asked instead.
+    const requested = (await collect(session.events(), (e) => e.type === 'approval.requested')).at(-1)
+    const approvalId = requested?.type === 'approval.requested' ? requested.data.approvalId : ''
+    await expect(session.resolveApproval(approvalId, { behavior: 'allow', updatedInput: { x: 1 } })).rejects.toBeInstanceOf(CapabilityError)
+    await session.resolveApproval(approvalId, 'allow')
+    expect(fake.calls.find((c) => c.method === 'submitApproval')).toMatchObject({ decision: { behavior: 'allow' } })
+  })
+
+  it('passes updatedInput through when supported', async () => {
+    const { runtime, fake } = setup({ approvals: { policy: () => ({ decision: 'allow', updatedInput: { safe: true } }) } })
+    const session = await runtime.createSession({ provider: 'fake', config: {} })
+    await session.send('x')
+    fake.emit(session.id, { kind: 'approval_request', requestId: 'r', toolUseId: 't', name: 'bash', input: {} })
+    await waitFor(() => fake.calls.some((c) => c.method === 'submitApproval'))
+    expect(fake.calls.find((c) => c.method === 'submitApproval')).toMatchObject({ decision: { behavior: 'allow', updatedInput: { safe: true } } })
   })
 })

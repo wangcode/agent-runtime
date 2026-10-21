@@ -45,7 +45,7 @@ function makeRuntime(server: { port: number }, overrides: Partial<RuntimeOptions
     reconnect: { baseMs: 10, maxMs: 50 },
     commandTimeoutMs: 5000,
   })
-  const runtime = createRuntime({ store, bus: new MemoryBus(), providers: { ac: provider }, pollIntervalMs: 50, ...overrides })
+  const runtime = createRuntime({ store, bus: new MemoryBus(), providers: { ac: provider }, pollIntervalMs: 50, toolCallWaitMs: 20, ...overrides })
   cleanups.push(() => runtime.close())
   return { runtime, store, provider }
 }

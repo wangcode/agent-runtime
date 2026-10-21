@@ -96,6 +96,31 @@ importers:
         specifier: ^8.5.13
         version: 8.18.2
 
+  packages/conformance:
+    dependencies:
+      '@agent-runtime/agentcore-runtime':
+        specifier: workspace:*
+        version: link:../agentcore-runtime
+      '@agent-runtime/core':
+        specifier: workspace:*
+        version: link:../core
+      '@agent-runtime/provider-agentcore':
+        specifier: workspace:*
+        version: link:../provider-agentcore
+      '@agent-runtime/provider-managed-agents':
+        specifier: workspace:*
+        version: link:../provider-managed-agents
+      '@anthropic-ai/sdk':
+        specifier: ^0.137.0
+        version: 0.137.0(zod@4.6.7)
+      ws:
+        specifier: ^8.18.0
+        version: 8.22.0
+    devDependencies:
+      '@types/ws':
+        specifier: ^8.5.13
+        version: 8.18.2
+
   packages/core:
     devDependencies:
       rxjs:

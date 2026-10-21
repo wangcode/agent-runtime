@@ -1,0 +1,21 @@
+{
+  "name": "@agent-runtime/conformance",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Behaviour conformance suite every agent-runtime provider must pass",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@agent-runtime/agentcore-runtime": "workspace:*",
+    "@agent-runtime/core": "workspace:*",
+    "@agent-runtime/provider-agentcore": "workspace:*",
+    "@agent-runtime/provider-managed-agents": "workspace:*",
+    "@anthropic-ai/sdk": "^0.137.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.13"
+  }
+}

@@ -9,6 +9,10 @@ import { abortable, backoff, deferred, errorMessage, newId, sleep } from './util
 /** NOTIFY payloads are capped at 8000 bytes; keep delta chunks well below that. */
 const MAX_DELTA_CHARS = 1500
 
+/** Events that must not appear before the tool.call they refer to. */
+const toolScopedId = (event: ProviderEvent): string | undefined =>
+  event.type === 'tool.result' || event.type === 'approval.requested' || event.type === 'approval.resolved' ? event.data.toolUseId : undefined
+
 function addUsage(total: Usage, u: Usage): Usage {
   const out: Usage = { ...total }
   for (const key of ['inputTokens', 'outputTokens', 'cacheReadInputTokens', 'cacheCreationInputTokens', 'costUsd'] as const) {
@@ -44,6 +48,10 @@ export class SessionWorker {
   private interruptRequested = false
   /** Usage reported by `usage` outputs during the current turn. */
   private turnUsage: Usage | undefined
+  /** tool.call ids already emitted (bounded). */
+  private toolCalls = new Set<string>()
+  /** Events held back until their tool.call is emitted. */
+  private awaitingToolCall = new Map<string, { events: ProviderEvent[]; timer: NodeJS.Timeout }>()
 
   constructor(
     private readonly rt: RuntimeInternals,
@@ -118,6 +126,8 @@ export class SessionWorker {
       clearTimeout(this.idleTimer)
       for (const t of this.approvalTimers.values()) clearTimeout(t)
       this.approvalTimers.clear()
+      for (const h of this.awaitingToolCall.values()) clearTimeout(h.timer)
+      this.awaitingToolCall.clear()
       this.unsubscribe?.()
       if (this.release) await store.releaseLease(this.sessionId, instanceId).catch(() => {})
     }
@@ -198,8 +208,14 @@ export class SessionWorker {
    */
   private async emit(event: ProviderEvent): Promise<void> {
     if (isEphemeralType(event.type)) return this.publishEphemeral(event)
+    // Providers may report a tool's result or permission request before the call itself (the
+    // Agent SDK runs tools concurrently with delivering the assistant message). Keep causal order.
+    const toolUseId = toolScopedId(event)
+    if (toolUseId && !this.toolCalls.has(toolUseId)) return this.holdUntilToolCall(toolUseId, event)
     if (event.type === 'session.status' && event.data.status === this.status) return
     if (event.type === 'turn.completed') {
+      // Nothing of this turn may come after its end: release anything still waiting for a tool.call.
+      for (const id of [...this.awaitingToolCall.keys()]) await this.releaseToolEvents(id)
       if (this.status !== 'idle' && this.status !== 'terminated') {
         await this.emit({ type: 'session.status', data: { status: 'idle' }, ...(event.sourceId ? { sourceId: `${event.sourceId}:idle` } : {}) })
       }
@@ -211,12 +227,44 @@ export class SessionWorker {
       this.interruptRequested = false
       this.turnUsage = undefined
     }
+    // One tool.result per tool call: the first one wins (e.g. ours for a denial vs. the provider's).
+    if (event.type === 'tool.result') event = { ...event, sourceId: `tool.result:${event.data.toolUseId}` }
     await this.persist(event)
+    if (event.type === 'tool.call') await this.releaseToolEvents(event.data.toolUseId)
+  }
+
+  private holdUntilToolCall(toolUseId: string, event: ProviderEvent) {
+    const held = this.awaitingToolCall.get(toolUseId)
+    if (held) {
+      held.events.push(event)
+      return
+    }
+    const timer = setTimeout(() => {
+      this.rt.logger.warn('tool.call never arrived; emitting dependent events anyway', { sessionId: this.sessionId, toolUseId })
+      void this.releaseToolEvents(toolUseId).catch((err) =>
+        this.rt.logger.error('emitting held tool events failed', { sessionId: this.sessionId, error: errorMessage(err) }),
+      )
+    }, this.rt.options.toolCallWaitMs)
+    this.awaitingToolCall.set(toolUseId, { events: [event], timer })
+  }
+
+  private async releaseToolEvents(toolUseId: string) {
+    this.toolCalls.add(toolUseId)
+    if (this.toolCalls.size > 2000) this.toolCalls.delete(this.toolCalls.values().next().value as string)
+    const held = this.awaitingToolCall.get(toolUseId)
+    if (!held) return
+    this.awaitingToolCall.delete(toolUseId)
+    clearTimeout(held.timer)
+    for (const e of held.events) await this.emit(e)
   }
 
   private async persist(event: ProviderEvent): Promise<void> {
     const persisted = await this.rt.store.appendEvent(this.sessionId, { ...event, provider: this.record.provider })
-    if (!persisted) return
+    if (!persisted) {
+      // Already stored (replay after reconnect/takeover): a duplicate tool.call still releases its dependents.
+      if (event.type === 'tool.call') await this.releaseToolEvents(event.data.toolUseId)
+      return
+    }
     if (event.type === 'session.status') await this.setStatus((event.data as { status: SessionStatus }).status)
     await this.rt.bus.publish(topics.events(this.sessionId), String(persisted.seq))
   }
@@ -468,6 +516,7 @@ export class SessionWorker {
       },
       sourceId: `action:${action.id}:resolved`,
     })
+    if (decision.behavior === 'deny') await this.emitDeniedResult(action.toolUseId, decision.message)
     await this.deliver({ ...action, status: 'resolved', result: decision })
     return true
   }
@@ -514,8 +563,14 @@ export class SessionWorker {
           data: { approvalId: action.id, toolUseId: action.toolUseId, decision: 'deny', by: 'system', message: reason },
           sourceId: `action:${action.id}:resolved`,
         })
+        await this.emitDeniedResult(action.toolUseId, reason)
       }
     }
+  }
+
+  /** Every tool call ends with exactly one tool.result; a denied call gets an error result here. */
+  private emitDeniedResult(toolUseId: string, message?: string) {
+    return this.emit({ type: 'tool.result', data: { toolUseId, content: [{ type: 'text', text: message ?? 'Permission denied' }], isError: true } })
   }
 
   // ---------------------------------------------------------------- idle release

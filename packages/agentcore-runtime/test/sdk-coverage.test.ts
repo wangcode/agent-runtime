@@ -80,4 +80,10 @@ describe('Claude Agent SDK coverage table', () => {
       'turn.completed',
     ])
   })
+
+  it('attributes subagent messages to their thread', () => {
+    const events = run({ type: 'assistant', uuid: 'a', parent_tool_use_id: 'toolu_task', message: { id: 'm', content: [{ type: 'text', text: 'sub' }] } })
+    expect(events).toMatchObject([{ type: 'message.completed', threadId: 'toolu_task' }])
+    expect(run({ type: 'assistant', uuid: 'b', parent_tool_use_id: null, message: { id: 'n', content: [{ type: 'text', text: 'main' }] } })[0]?.threadId).toBeUndefined()
+  })
 })

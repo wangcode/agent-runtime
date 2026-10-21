@@ -32,6 +32,11 @@ export interface RuntimeOptions {
   /** How long `send()` & co. wait for the owner to execute the command. Default 60s. */
   commandTimeoutMs?: number
   reconnect?: { baseMs?: number; maxMs?: number }
+  /**
+   * Tool results and approval events are held until the tool.call they refer to was emitted, at
+   * most this long. Default 2s.
+   */
+  toolCallWaitMs?: number
   logger?: Logger
 }
 
@@ -43,6 +48,7 @@ export interface ResolvedOptions {
   pollIntervalMs: number
   commandTimeoutMs: number
   reconnect: { baseMs: number; maxMs: number }
+  toolCallWaitMs: number
 }
 
 /** What a SessionWorker needs from its runtime. */
@@ -116,6 +122,7 @@ export class Runtime {
         pollIntervalMs: options.pollIntervalMs ?? 2_000,
         commandTimeoutMs: options.commandTimeoutMs ?? 60_000,
         reconnect: { baseMs: options.reconnect?.baseMs ?? 500, maxMs: options.reconnect?.maxMs ?? 30_000 },
+        toolCallWaitMs: options.toolCallWaitMs ?? 2_000,
       },
     }
     this.scanTimer = setInterval(() => void this.scanOrphans(), this.internals.options.orphanScanIntervalMs)
