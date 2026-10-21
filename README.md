@@ -108,6 +108,8 @@ for await (const event of session.events({ after: lastEventId })) {
 
 ## Development
 
+Read these docs as a website: `pnpm docs:dev`, then open http://localhost:5173.
+
 ```bash
 pnpm install
 pnpm typecheck
