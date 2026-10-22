@@ -73,7 +73,7 @@ What users see during a failover:
 | Pending approvals | Still answerable; their timeouts keep their original deadline |
 | Custom tool running on the dead instance | Re-run by the new owner (so handlers must be idempotent) |
 | Live token deltas during the gap | Lost; the final text arrives in `agent.message.completed` |
-| Interrupt / usage of the turn in progress | May be lost: the next `turn.completed` might show `end_turn` and incomplete `usage` ([open question](behavior-spec.md#open-questions)) |
+| Interrupt / usage of the turn in progress | May be lost: the next `runtime.turn.completed` might show `end_turn` and incomplete `usage` ([open question](behavior-spec.md#open-questions)) |
 
 ### Deploys
 

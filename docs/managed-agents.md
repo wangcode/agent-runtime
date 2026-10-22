@@ -90,7 +90,7 @@ so a different instance can resume after a takeover.
 | `session.status_running` | `session.status: running` |
 | `agent.message` | `agent.message.completed` |
 | `span.model_request_end` ×2, `session.usage` | — (summed into the turn's usage) |
-| `session.status_idle` (`end_turn`) | `session.status: idle`, `turn.completed` (`usage` with tokens and `costUsd`) |
+| `session.status_idle` (`end_turn`) | `session.status: idle`, `runtime.turn.completed` (`usage` with tokens and `costUsd`) |
 
 ## What gets sent to Managed Agents
 
@@ -132,13 +132,13 @@ an SDK upgrade that adds a type fails the build until it is added there (see
 | `agent.thread_message_sent` | `provider.custom` |  |
 | **Session status and lifecycle** | | |
 | `session.status_running` | `session.status: running` | usually a duplicate: the runtime already reported `running` on `send()` |
-| `session.status_idle` | `session.status: idle` + `turn.completed` | stop reason mapped below; `requires_action` becomes `session.status: requires_action` and does not end the turn |
+| `session.status_idle` | `session.status: idle` + `runtime.turn.completed` | stop reason mapped below; `requires_action` becomes `session.status: requires_action` and does not end the turn |
 | `session.status_terminated` | `session.status: terminated` |  |
 | `session.deleted` | `session.status: terminated` |  |
 | `session.status_rescheduled` | `provider.custom` |  |
 | `session.error` | `session.error` |  |
 | `session.updated` | `provider.custom` |  |
-| `session.usage` | `turn.completed.usage.costUsd` | cumulative cost; the increase since the previous one is added to the current turn |
+| `session.usage` | `runtime.turn.completed.usage.costUsd` | cumulative cost; the increase since the previous one is added to the current turn |
 | **Multi-agent threads** | | |
 | `session.thread_created` | `provider.custom` |  |
 | `session.thread_status_running` | `provider.custom` |  |
@@ -147,7 +147,7 @@ an SDK upgrade that adds a type fails the build until it is added there (see
 | `session.thread_status_terminated` | `provider.custom` |  |
 | **Spans** | | |
 | `span.model_request_start` | `provider.custom` |  |
-| `span.model_request_end` | `turn.completed.usage` token counts | summed per turn |
+| `span.model_request_end` | `runtime.turn.completed.usage` token counts | summed per turn |
 | `span.outcome_evaluation_start` | `provider.custom` |  |
 | `span.outcome_evaluation_ongoing` | `provider.custom` |  |
 | `span.outcome_evaluation_end` | `provider.custom` |  |
@@ -170,7 +170,7 @@ an SDK upgrade that adds a type fails the build until it is added there (see
 
 **Stop reasons** (`session.status_idle.stop_reason.type`):
 
-| Managed Agents | `turn.completed.stopReason` |
+| Managed Agents | `runtime.turn.completed.stopReason` |
 | --- | --- |
 | `end_turn` | `end_turn` (`interrupted` if you interrupted the turn; Managed Agents itself reports `end_turn`) |
 | `requires_action` | none: the turn stays open and `session.status` becomes `requires_action` |

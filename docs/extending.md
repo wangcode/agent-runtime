@@ -117,7 +117,7 @@ async *connect(ctx: ConnectContext<MyConfig>): AsyncGenerator<ProviderOutput> {
 | `{ kind: 'cursor', cursor }` | A resume point (any JSON value). Stored after the preceding outputs are handled; passed back as `ctx.cursor` |
 | `{ kind: 'tool_request', requestId, toolUseId, name, input }` | The agent called a runtime custom tool. The runtime runs the handler and calls `submitToolResult(requestId, …)` |
 | `{ kind: 'approval_request', requestId, toolUseId, name, input }` | The agent needs permission. The runtime decides and calls `submitApproval(requestId, …)` |
-| `{ kind: 'usage', usage }` | Usage of one model request; summed into `turn.completed.usage` |
+| `{ kind: 'usage', usage }` | Usage of one model request; summed into `runtime.turn.completed.usage` |
 | `{ kind: 'actions_reset', reason }` | The provider lost its pending requests (e.g. it restarted); the runtime cancels them |
 
 Rules:
@@ -142,9 +142,9 @@ Emit the unified events defined in the [event model](event-model.md), following 
 | the agent calls one of the runtime's custom tools | `tool.call` with `kind: 'custom'` **and** a `tool_request` output |
 | a tool call needs permission | `tool.call`, then an `approval_request` output |
 | the agent is working | `session.status: running` (optional; the runtime starts turns itself) |
-| the turn ended | `turn.completed` with `stopReason`; the runtime adds `session.status: idle` before it |
+| the turn ended | `runtime.turn.completed` with `stopReason`; the runtime adds `session.status: idle` before it |
 | errors | `session.error` |
-| usage | `usage` outputs, or `usage` on `turn.completed` |
+| usage | `usage` outputs, or `usage` on `runtime.turn.completed` |
 | a sub-agent produced it | set `threadId` on the event |
 | anything else | `provider.custom` with the provider's type name and payload |
 
@@ -152,7 +152,7 @@ Don't emit:
 
 - **`user.message`**: the runtime records your `send()` itself; skip the provider's echo.
 - **`tool.result` for custom tools**: the runtime records it.
-- **`session.status: idle`**: the runtime emits it before `turn.completed`.
+- **`session.status: idle`**: the runtime emits it before `runtime.turn.completed`.
 
 **Give every persisted event a stable `sourceId`.** Use the provider's event id; if one provider
 event yields several unified events, add a suffix (`<id>:0`, `<id>:1`). Replaying the same history
@@ -231,7 +231,7 @@ export const myDriver: AgentDriver = {
           onText: (text) => session.emit({ type: 'agent.text.delta', data: { messageId, text } }),
           onDone: (fullText, usage) => {
             session.emit({ type: 'agent.message.completed', data: { messageId, content: [{ type: 'text', text: fullText }] } })
-            session.emit({ type: 'turn.completed', data: { stopReason: 'end_turn', usage } })
+            session.emit({ type: 'runtime.turn.completed', data: { stopReason: 'end_turn', usage } })
             session.setBusy(false)
           },
         })

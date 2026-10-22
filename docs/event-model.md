@@ -52,15 +52,19 @@ them.
 
 ## Naming
 
-Event names follow two rules:
+Event names follow three rules:
 
 - **Conversation content is named after who said it.** `user.message` is what the user sent;
   `agent.message.start`, `agent.text.delta`, `agent.thinking.delta`, and `agent.message.completed`
   are what the agent produced.
 - **Everything else is named after the thing it describes**, because more than one party takes
   part in it: `session.*` (the session), `tool.*` (a tool call: the agent asks, and your handler
-  or the provider answers), `approval.*` (a permission decision by policy, human, or timeout),
-  `turn.*` (one round of work), and `provider.custom`.
+  or the provider answers), `approval.*` (a permission decision by policy, human, or timeout), and
+  `provider.custom`.
+- **Events the runtime synthesizes, with no counterpart in any provider, start with `runtime.`**
+  Currently that is `runtime.turn.completed`: providers only report that the agent stopped
+  (Managed Agents `session.status_idle`, Agent SDK `result`), and the runtime turns that into one
+  end-of-turn event with a uniform stop reason and the turn's total usage.
 
 This matches the [Agent Client Protocol](https://agentclientprotocol.com), which also uses
 `user_message_chunk` / `agent_message_chunk` / `agent_thought_chunk` for content and `tool_call`
@@ -79,7 +83,7 @@ guides: [Managed Agents event mapping](managed-agents.md#event-mapping) and
 | [`session.created`](#session-created) | persisted | `createSession()` | – | – |
 | [`session.status`](#session-status) `running` | persisted | on every `send()` that starts a turn | `session.status_running` (duplicates dropped) | the driver when a message is pushed (duplicates dropped) |
 | [`session.status`](#session-status) `requires_action` | persisted | – | `session.status_idle` with stop reason `requires_action` | `canUseTool` waiting for a decision |
-| [`session.status`](#session-status) `idle` | persisted | right before every `turn.completed` | (from `session.status_idle`) | (from `result`) |
+| [`session.status`](#session-status) `idle` | persisted | right before every `runtime.turn.completed` | (from `session.status_idle`) | (from `result`) |
 | [`session.status`](#session-status) `terminated` | persisted | `session.terminate()` | `session.status_terminated`, `session.deleted`, or a 404 from the API | the SDK session closed |
 | [`session.error`](#session-error) | persisted | a message could not be delivered | `session.error` | `result/error_*`, or an exception from the SDK |
 | [`user.message`](#user-message) | persisted | `send()` (including `system`) | – (`user.message` and `system.message` echoes are ignored) | – (the SDK's echo of our prompt is ignored) |
@@ -91,7 +95,7 @@ guides: [Managed Agents event mapping](managed-agents.md#event-mapping) and
 | [`tool.result`](#tool-result) | persisted | your custom tool handler's result; an error result for a denied or expired approval | `agent.tool_result`, `agent.mcp_tool_result` | `tool_result` blocks in a `user` message |
 | [`approval.requested`](#approval-requested) | persisted | when the approval policy answers `ask` | `agent.tool_use` / `agent.mcp_tool_use` with `evaluated_permission: ask` | `canUseTool` |
 | [`approval.resolved`](#approval-resolved) | persisted | a decision by policy, human, or timeout | – | – |
-| [`turn.completed`](#turn-completed) | persisted | sums `usage`; sets `stopReason: interrupted` after an interrupt | `session.status_idle` (stop reason mapped); usage from `span.model_request_end` and `session.usage` | `result/*` (stop reason mapped), with its usage and cost |
+| [`runtime.turn.completed`](#runtime-turn-completed) | persisted | sums `usage`; sets `stopReason: interrupted` after an interrupt | `session.status_idle` (stop reason mapped); usage from `span.model_request_end` and `session.usage` | `result/*` (stop reason mapped), with its usage and cost |
 | [`provider.custom`](#provider-custom) | persisted | – | every type marked *custom* in the [mapping](managed-agents.md#event-mapping) | every message marked *custom* in the [mapping](agentcore.md#event-mapping) |
 
 A `tool.result` appears once per `toolUseId`. When both the runtime and the provider report a
@@ -246,9 +250,9 @@ Policy decisions produce `approval.resolved` without a preceding `approval.reque
 
 ---
 
-## Turn events
+## Runtime events
 
-### `turn.completed`
+### `runtime.turn.completed`
 
 The agent finished responding. It always comes immediately after `session.status: idle`.
 
@@ -295,7 +299,7 @@ seq  type                 data
  6   tool.result          toolUseId "tu_1", [text "{\"status\":\"shipped\"}"]
  7   agent.message.completed    messageId "msg_2:0", [text "Order 42 shipped yesterday."]
  8   session.status       idle
- 9   turn.completed       end_turn, usage { inputTokens: 812, outputTokens: 64, costUsd: 0.0031 }
+ 9   runtime.turn.completed       end_turn, usage { inputTokens: 812, outputTokens: 64, costUsd: 0.0031 }
 ```
 
 ## SSE format

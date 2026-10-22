@@ -182,6 +182,6 @@ export class SdkEventMapper {
       ...(msg.total_cost_usd !== undefined ? { costUsd: msg.total_cost_usd } : {}),
     }
     this.setStatus('idle')
-    this.out({ type: 'turn.completed', data: { stopReason, ...(Object.keys(usage).length ? { usage } : {}) }, raw: msg, sourceId: id })
+    this.out({ type: 'runtime.turn.completed', data: { stopReason, ...(Object.keys(usage).length ? { usage } : {}) }, raw: msg, sourceId: id })
   }
 }

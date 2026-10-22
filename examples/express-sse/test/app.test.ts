@@ -96,7 +96,7 @@ describe('express SSE example', () => {
     expect(lastId).toBeDefined()
 
     // Reconnect to B with Last-Event-ID: no duplicates, nothing missing, through to the end.
-    const after = await readSSE(`${b}/sessions/${id}/events`, (e) => e.event === 'turn.completed', lastId)
+    const after = await readSSE(`${b}/sessions/${id}/events`, (e) => e.event === 'runtime.turn.completed', lastId)
     const ids = [...beforeDrop, ...after].filter((e) => e.id).map((e) => Number(e.id))
     expect(ids).toEqual(Array.from({ length: ids.length }, (_, i) => i + 1))
     expect(after.find((e) => e.event === 'agent.message.completed')?.data.data).toMatchObject({ content: [{ text: 'You said "hello". The time is [{"type":"text","text":"12:00"}].' }] })
@@ -114,7 +114,7 @@ describe('express SSE example', () => {
     expect(approvals).toHaveLength(1)
     expect((await post(`${b}/sessions/${id}/approvals/${approvals[0]!.id}`, { decision: 'allow' })).status).toBe(202)
     expect((await post(`${b}/sessions/${id}/approvals/${approvals[0]!.id}`, { decision: 'deny' })).status).toBe(409)
-    const all = await readSSE(`${b}/sessions/${id}/events`, (e) => e.event === 'turn.completed')
+    const all = await readSSE(`${b}/sessions/${id}/events`, (e) => e.event === 'runtime.turn.completed')
     expect(all.filter((e) => e.event === 'agent.message.completed').at(-1)?.data.data).toMatchObject({ content: [{ text: 'Ran `ls -la`.' }] })
   })
 })

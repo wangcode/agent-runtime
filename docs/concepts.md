@@ -10,7 +10,7 @@ once before the other guides.
 | **Runtime** | The object your backend creates once per process with `createRuntime()`. It knows the providers, your tools, your approval policy, and where state is stored. |
 | **Provider** | An agent service, such as Claude Managed Agents or the Claude Agent SDK on Bedrock AgentCore. You register providers on the runtime under a key of your choice (`'ma'`, `'ac'`, …). |
 | **Session** | One conversation with an agent, on one provider. Created with `runtime.createSession()`, looked up from any instance with `runtime.getSession(id)`. A session lives until you terminate it. |
-| **Turn** | One round of work: it starts when you send a message to an idle session, and ends when the agent stops and waits for the next message (`turn.completed`). A session has many turns. Not to be confused with a provider's *threads* (sub-agents working in parallel inside a turn), which show up as `threadId` on events. |
+| **Turn** | One round of work: it starts when you send a message to an idle session, and ends when the agent stops and waits for the next message (`runtime.turn.completed`). A session has many turns. Not to be confused with a provider's *threads* (sub-agents working in parallel inside a turn), which show up as `threadId` on events. |
 | **Event** | Something that happened in a session: a message, a tool call, a status change, … Every provider's activity is converted into the same set of events. See [Event model](event-model.md). |
 | **Custom tool** | A function you register on the runtime that the agent can call. It runs on your server. See [Tools and approvals](tools-and-approvals.md). |
 | **Approval** | A decision whether the agent may run a tool. Your **policy** decides it automatically, or asks a human. |
@@ -55,7 +55,7 @@ send("…")
   session.status: running
   …  agent.message.completed / tool.call / approval.requested / approval.resolved / tool.result …
   session.status: idle
-  turn.completed  { stopReason, usage }
+  runtime.turn.completed  { stopReason, usage }
 ```
 
 Every provider produces this shape. The exact rules are in the [behaviour spec](behavior-spec.md).

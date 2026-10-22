@@ -62,7 +62,7 @@ export async function runScenario(harness: Harness, scenario: Scenario, timeoutM
           const text = e.data.content.map((b) => ('text' in b ? b.text : '')).join('')
           if (text === scenario.interruptAfterText) void session.interrupt()
         }
-        if (e.type === 'turn.completed') {
+        if (e.type === 'runtime.turn.completed') {
           completedTurns += 1
           turnDone()
         }

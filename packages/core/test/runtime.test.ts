@@ -61,7 +61,7 @@ const agentReplies = (fake: FakeProvider, text: string) => {
       { kind: 'event', event: { type: 'agent.text.delta', data: { messageId: 'm1', text: text.slice(0, 3) } } },
       { kind: 'event', event: { type: 'agent.message.completed', data: { messageId: 'm1', content: [{ type: 'text', text }] }, sourceId: 'p1' } },
       { kind: 'event', event: { type: 'session.status', data: { status: 'idle' } } },
-      { kind: 'event', event: { type: 'turn.completed', data: { stopReason: 'end_turn' } } },
+      { kind: 'event', event: { type: 'runtime.turn.completed', data: { stopReason: 'end_turn' } } },
     )
   }
 }
@@ -71,7 +71,7 @@ describe('runtime basics', () => {
     const { runtime, fake } = setup()
     agentReplies(fake, 'hello world')
     const session = await runtime.createSession({ provider: 'fake', config: {} })
-    const events = collect(session.events(), (e) => e.type === 'turn.completed')
+    const events = collect(session.events(), (e) => e.type === 'runtime.turn.completed')
     await session.send('hi')
     const got = await events
     expect(got.map((e) => e.type)).toEqual([
@@ -82,7 +82,7 @@ describe('runtime basics', () => {
       'agent.text.delta',
       'agent.message.completed',
       'session.status',
-      'turn.completed',
+      'runtime.turn.completed',
     ])
     expect(got.filter((e) => e.seq !== undefined).map((e) => e.seq)).toEqual([1, 2, 3, 4, 5, 6])
     expect(got.find((e) => e.type === 'agent.text.delta')?.ephemeral).toBe(true)
@@ -95,7 +95,7 @@ describe('runtime basics', () => {
     agentReplies(fake, 'abc')
     const session = await runtime.createSession({ provider: 'fake', config: {} })
     await session.send('one')
-    await collect(session.events({ includeDeltas: false }), (e) => e.type === 'turn.completed')
+    await collect(session.events({ includeDeltas: false }), (e) => e.type === 'runtime.turn.completed')
     const replay = await collect(session.events({ after: 3, follow: false }), () => false)
     expect(replay.map((e) => e.seq)).toEqual([4, 5, 6])
   })
@@ -108,8 +108,8 @@ describe('runtime basics', () => {
     fake.emit(session.id, msg)
     fake.disconnect(session.id)
     await waitFor(() => fake.connections.length === 2)
-    fake.emit(session.id, msg, { kind: 'event', event: { type: 'turn.completed', data: { stopReason: 'end_turn' }, sourceId: 'evt_2' } })
-    const all = await collect(session.events({ includeDeltas: false }), (e) => e.type === 'turn.completed')
+    fake.emit(session.id, msg, { kind: 'event', event: { type: 'runtime.turn.completed', data: { stopReason: 'end_turn' }, sourceId: 'evt_2' } })
+    const all = await collect(session.events({ includeDeltas: false }), (e) => e.type === 'runtime.turn.completed')
     expect(all.filter((e) => e.type === 'agent.message.completed')).toHaveLength(1)
   })
 
@@ -284,7 +284,7 @@ describe('multi-instance', () => {
     agentReplies(a.fake, 'cross instance')
     const session = await a.runtime.createSession({ provider: 'fake', config: {} })
     const remote = await b.runtime.getSession(session.id)
-    const events = collect(remote!.events(), (e) => e.type === 'turn.completed')
+    const events = collect(remote!.events(), (e) => e.type === 'runtime.turn.completed')
     await session.send('hi')
     expect((await events).map((e) => e.type)).toContain('agent.text.delta')
   })
@@ -320,7 +320,7 @@ describe('multi-instance', () => {
 
   it('releases ownership when idle and re-acquires on the next command', async () => {
     const { runtime, fake } = setup({ idleReleaseMs: 50 })
-    fake.onSend = (sid) => fake.emit(sid, { kind: 'event', event: { type: 'turn.completed', data: { stopReason: 'end_turn' } } })
+    fake.onSend = (sid) => fake.emit(sid, { kind: 'event', event: { type: 'runtime.turn.completed', data: { stopReason: 'end_turn' } } })
     const session = await runtime.createSession({ provider: 'fake', config: {} })
     await session.send('x')
     await waitFor(() => runtime.ownedSessions.length === 0)
@@ -342,21 +342,21 @@ describe('multi-instance', () => {
 describe('behaviour normalization', () => {
   const ev = (event: object) => ({ kind: 'event' as const, event: event as never })
 
-  it('ends every turn with idle then turn.completed, without repeated statuses', async () => {
+  it('ends every turn with idle then runtime.turn.completed, without repeated statuses', async () => {
     const { runtime, fake } = setup()
     fake.onSend = (sid) =>
       fake.emit(
         sid,
         ev({ type: 'session.status', data: { status: 'running' } }),
         ev({ type: 'session.status', data: { status: 'running' } }),
-        ev({ type: 'turn.completed', data: { stopReason: 'end_turn' } }),
+        ev({ type: 'runtime.turn.completed', data: { stopReason: 'end_turn' } }),
       )
     const session = await runtime.createSession({ provider: 'fake', config: {} })
     await session.send('x')
-    const types = (await collect(session.events({ includeDeltas: false }), (e) => e.type === 'turn.completed')).map((e) =>
+    const types = (await collect(session.events({ includeDeltas: false }), (e) => e.type === 'runtime.turn.completed')).map((e) =>
       e.type === 'session.status' ? `status:${e.data.status}` : e.type,
     )
-    expect(types).toEqual(['session.created', 'user.message', 'status:running', 'status:idle', 'turn.completed'])
+    expect(types).toEqual(['session.created', 'user.message', 'status:running', 'status:idle', 'runtime.turn.completed'])
   })
 
   it('reports interrupted for a turn that was interrupted, whatever the provider said', async () => {
@@ -364,18 +364,18 @@ describe('behaviour normalization', () => {
     const session = await runtime.createSession({ provider: 'fake', config: {} })
     await session.send('long task')
     await session.interrupt()
-    fake.emit(session.id, ev({ type: 'turn.completed', data: { stopReason: 'end_turn' } }))
-    const done = (await collect(session.events(), (e) => e.type === 'turn.completed')).at(-1)
+    fake.emit(session.id, ev({ type: 'runtime.turn.completed', data: { stopReason: 'end_turn' } }))
+    const done = (await collect(session.events(), (e) => e.type === 'runtime.turn.completed')).at(-1)
     expect(done).toMatchObject({ data: { stopReason: 'interrupted' } })
 
     // The next turn is not affected.
-    fake.onSend = (sid) => fake.emit(sid, ev({ type: 'turn.completed', data: { stopReason: 'end_turn' } }))
+    fake.onSend = (sid) => fake.emit(sid, ev({ type: 'runtime.turn.completed', data: { stopReason: 'end_turn' } }))
     await session.send('again')
-    const next = (await collect(session.events({ after: done!.seq }), (e) => e.type === 'turn.completed')).at(-1)
+    const next = (await collect(session.events({ after: done!.seq }), (e) => e.type === 'runtime.turn.completed')).at(-1)
     expect(next).toMatchObject({ data: { stopReason: 'end_turn' } })
   })
 
-  it('sums per-request usage into turn.completed, unless the provider reports a turn total', async () => {
+  it('sums per-request usage into runtime.turn.completed, unless the provider reports a turn total', async () => {
     const { runtime, fake } = setup()
     const session = await runtime.createSession({ provider: 'fake', config: {} })
     await session.send('x')
@@ -383,18 +383,18 @@ describe('behaviour normalization', () => {
       session.id,
       { kind: 'usage', usage: { inputTokens: 10, outputTokens: 2 } },
       { kind: 'usage', usage: { inputTokens: 5, outputTokens: 3, costUsd: 0.01 } },
-      ev({ type: 'turn.completed', data: { stopReason: 'end_turn' } }),
+      ev({ type: 'runtime.turn.completed', data: { stopReason: 'end_turn' } }),
     )
-    const first = (await collect(session.events(), (e) => e.type === 'turn.completed')).at(-1)
+    const first = (await collect(session.events(), (e) => e.type === 'runtime.turn.completed')).at(-1)
     expect(first).toMatchObject({ data: { usage: { inputTokens: 15, outputTokens: 5, costUsd: 0.01 } } })
 
     await session.send('y')
     fake.emit(
       session.id,
       { kind: 'usage', usage: { inputTokens: 99 } },
-      ev({ type: 'turn.completed', data: { stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } } }),
+      ev({ type: 'runtime.turn.completed', data: { stopReason: 'end_turn', usage: { inputTokens: 1, outputTokens: 1 } } }),
     )
-    const second = (await collect(session.events({ after: first!.seq }), (e) => e.type === 'turn.completed')).at(-1)
+    const second = (await collect(session.events({ after: first!.seq }), (e) => e.type === 'runtime.turn.completed')).at(-1)
     expect(second).toMatchObject({ data: { usage: { inputTokens: 1, outputTokens: 1 } } })
   })
 
@@ -411,7 +411,7 @@ describe('behaviour normalization', () => {
     const { runtime, fake } = setup()
     agentReplies(fake, 'ok')
     const session = await runtime.createSession({ provider: 'fake', config: {} })
-    const events = collect(session.events(), (e) => e.type === 'turn.completed')
+    const events = collect(session.events(), (e) => e.type === 'runtime.turn.completed')
     await session.send('hi', { system: 'Be brief' })
     const user = (await events).find((e) => e.type === 'user.message')
     expect(user?.data).toEqual({ content: [{ type: 'text', text: 'hi' }], system: [{ type: 'text', text: 'Be brief' }] })

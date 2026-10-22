@@ -44,7 +44,7 @@ export class SessionWorker {
   private unsubscribe: (() => void) | undefined
   private release = true
   private stopping = false
-  /** An interrupt was sent during the current turn; its turn.completed becomes `interrupted`. */
+  /** An interrupt was sent during the current turn; its runtime.turn.completed becomes `interrupted`. */
   private interruptRequested = false
   /** Usage reported by `usage` outputs during the current turn. */
   private turnUsage: Usage | undefined
@@ -204,7 +204,7 @@ export class SessionWorker {
   /**
    * Persist (or fan out, for deltas) one event, enforcing the behaviour every provider must share
    * (docs/behavior-spec.md): no repeated status, `session.status: idle` right before every
-   * `turn.completed`, `interrupted` stop reason after an interrupt, per-turn usage totals.
+   * `runtime.turn.completed`, `interrupted` stop reason after an interrupt, per-turn usage totals.
    */
   private async emit(event: ProviderEvent): Promise<void> {
     if (isEphemeralType(event.type)) return this.publishEphemeral(event)
@@ -213,7 +213,7 @@ export class SessionWorker {
     const toolUseId = toolScopedId(event)
     if (toolUseId && !this.toolCalls.has(toolUseId)) return this.holdUntilToolCall(toolUseId, event)
     if (event.type === 'session.status' && event.data.status === this.status) return
-    if (event.type === 'turn.completed') {
+    if (event.type === 'runtime.turn.completed') {
       // Nothing of this turn may come after its end: release anything still waiting for a tool.call.
       for (const id of [...this.awaitingToolCall.keys()]) await this.releaseToolEvents(id)
       if (this.status !== 'idle' && this.status !== 'terminated') {

@@ -29,7 +29,7 @@ fake.onSend = (sessionId, content) => {
   fake.emit(
     sessionId,
     { kind: 'event', event: { type: 'agent.message.completed', data: { messageId: `${Date.now()}:0`, content: [{ type: 'text', text: `You said: ${text}` }] } } },
-    { kind: 'event', event: { type: 'turn.completed', data: { stopReason: 'end_turn' } } },
+    { kind: 'event', event: { type: 'runtime.turn.completed', data: { stopReason: 'end_turn' } } },
   )
 }
 
@@ -109,7 +109,7 @@ event: session.status
 data: {…"data":{"status":"idle"}}
 
 id: 6
-event: turn.completed
+event: runtime.turn.completed
 data: {…"data":{"stopReason":"end_turn"}}
 ```
 

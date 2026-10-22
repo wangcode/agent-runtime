@@ -54,7 +54,7 @@ export const MA_EVENT_COVERAGE = {
 
   // Session status and lifecycle.
   'session.status_running': 'mapped', // -> session.status running
-  'session.status_idle': 'mapped', // -> session.status (+ turn.completed)
+  'session.status_idle': 'mapped', // -> session.status (+ runtime.turn.completed)
   'session.status_terminated': 'mapped', // -> session.status terminated
   'session.deleted': 'mapped', // -> session.status terminated
   'session.status_rescheduled': 'custom',
@@ -71,7 +71,7 @@ export const MA_EVENT_COVERAGE = {
 
   // Spans.
   'span.model_request_start': 'custom',
-  'span.model_request_end': 'mapped', // -> per-turn usage on turn.completed
+  'span.model_request_end': 'mapped', // -> per-turn usage on runtime.turn.completed
   'span.outcome_evaluation_start': 'custom',
   'span.outcome_evaluation_ongoing': 'custom',
   'span.outcome_evaluation_end': 'custom',

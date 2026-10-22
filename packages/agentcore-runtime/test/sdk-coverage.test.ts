@@ -77,7 +77,7 @@ describe('Claude Agent SDK coverage table', () => {
     // unknown result subtype still ends the turn
     expect(run({ type: 'result', subtype: 'error_brand_new', uuid: 'r', is_error: true, errors: ['x'] }).map((e) => e.type)).toEqual([
       'session.error',
-      'turn.completed',
+      'runtime.turn.completed',
     ])
   })
 

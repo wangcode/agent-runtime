@@ -43,7 +43,7 @@ export function simulateAgent(fake: FakeProvider, opts: { wordDelayMs?: number }
         fake.emit(sid, { kind: 'event', event: { type: 'agent.message.completed', data: { messageId: `${messageId}-b`, content: [{ type: 'text', text }] } } })
       }
       fake.emit(sid, { kind: 'event', event: { type: 'session.status', data: { status: 'idle' } } })
-      fake.emit(sid, { kind: 'event', event: { type: 'turn.completed', data: { stopReason: 'end_turn' } } })
+      fake.emit(sid, { kind: 'event', event: { type: 'runtime.turn.completed', data: { stopReason: 'end_turn' } } })
     })()
   }
 }

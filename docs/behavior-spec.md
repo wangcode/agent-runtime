@@ -20,10 +20,10 @@ Where a provider genuinely cannot do something, the difference is a declared
    first two events are `user.message` and `session.status: running`, emitted by the runtime
    itself, so their timing is the same for every provider.
 2. **How a turn ends.** Every turn ends with `session.status: idle` **immediately followed by**
-   `turn.completed`. Nothing from that turn comes after `turn.completed`.
+   `runtime.turn.completed`. Nothing from that turn comes after `runtime.turn.completed`.
 3. **Interrupted turns.** A turn ended by `session.interrupt()` has `stopReason: 'interrupted'`,
    whatever the provider reported.
-4. **Usage.** `turn.completed.usage` holds the **total for that turn**: tokens, and `costUsd` when
+4. **Usage.** `runtime.turn.completed.usage` holds the **total for that turn**: tokens, and `costUsd` when
    the provider can report cost. There is no separate usage event. A turn with nothing to report
    has no `usage`.
 5. **Repeated status.** `session.status` is never emitted twice in a row with the same value.
@@ -71,7 +71,7 @@ Where a provider genuinely cannot do something, the difference is a declared
 | --- | --- | --- | --- |
 | `approvalUpdatedInput` | Approvals may change the tool's input | `false`, not supported | `false` by default; `true` with `allowUpdatedInput: true` |
 | `thinkingContent` | `full`: thinking text is complete. `best_effort`: assembled from live deltas, may be partial after a reconnect | `best_effort` | `full` |
-| `turnCost` | `turn.completed.usage.costUsd` is reported | `true` | `true` |
+| `turnCost` | `runtime.turn.completed.usage.costUsd` is reported | `true` | `true` |
 | `systemMessages` | How `send(…, { system })` is delivered. `native`: a real system-role message. `emulated`: a `<system-reminder>` block appended to the user message | `native` | `emulated` |
 
 ## Open questions

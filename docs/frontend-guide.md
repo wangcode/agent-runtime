@@ -23,7 +23,7 @@ const TYPES = [
   'session.created', 'session.status', 'session.error',
   'user.message', 'agent.message.start', 'agent.text.delta', 'agent.thinking.delta', 'agent.message.completed',
   'tool.call', 'tool.result', 'approval.requested', 'approval.resolved',
-  'turn.completed', 'provider.custom',
+  'runtime.turn.completed', 'provider.custom',
 ] as const
 
 for (const type of TYPES) {
@@ -154,7 +154,7 @@ function reduce(s: State, e: RuntimeEvent): State {
       s.error = e.data.message
       break
 
-    case 'turn.completed':
+    case 'runtime.turn.completed':
       s.error = undefined
       break
   }
@@ -219,13 +219,13 @@ tool.result          { toolUseId: "t1", content: [...] }
 
 | Event | What to show |
 | --- | --- |
-| `turn.completed` with `stopReason: 'end_turn'` | nothing special; the answer is complete |
-| `turn.completed` with `stopReason: 'interrupted'` | "Stopped" marker |
-| `turn.completed` with `stopReason: 'error' \| 'budget' \| 'max_turns' \| 'refusal'` | a notice explaining why the agent stopped |
+| `runtime.turn.completed` with `stopReason: 'end_turn'` | nothing special; the answer is complete |
+| `runtime.turn.completed` with `stopReason: 'interrupted'` | "Stopped" marker |
+| `runtime.turn.completed` with `stopReason: 'error' \| 'budget' \| 'max_turns' \| 'refusal'` | a notice explaining why the agent stopped |
 | `session.error` | an error banner. If `retryable` is true, the provider is retrying by itself |
 | `session.status: terminated` | the conversation is closed; disable the input. The stream ends after this event |
 
-`turn.completed.usage` (`inputTokens`, `outputTokens`, `costUsd`) is the total for that turn,
+`runtime.turn.completed.usage` (`inputTokens`, `outputTokens`, `costUsd`) is the total for that turn,
 which is useful for per-message cost display.
 
 ## 6. Checklist

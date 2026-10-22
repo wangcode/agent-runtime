@@ -58,7 +58,7 @@ Returns `{ server, port, bootId, sessions, health(), close() }`.
 | --- | --- |
 | `GET /ping` | `{ status: 'Healthy' \| 'HealthyBusy', time_of_last_update }`. Busy while a turn, tool call, or approval is in flight. The timestamp only changes on transitions, as AgentCore expects |
 | `GET /ws` | The agent-runtime WebSocket protocol |
-| `POST /invocations` | HTTP fallback. Body `{ sessionId?, prompt, config? }`; runs one turn and streams events as SSE until `turn.completed`. Tool calls and approvals need a WebSocket client |
+| `POST /invocations` | HTTP fallback. Body `{ sessionId?, prompt, config? }`; runs one turn and streams events as SSE until `runtime.turn.completed`. Tool calls and approvals need a WebSocket client |
 
 ## Claude Agent SDK driver
 

@@ -138,11 +138,11 @@ type, content block, or delta fails the build until it is added there (see
 | `assistant` | one event per content block (table below) |  |
 | `user` | `tool.result` for each `tool_result` block | other user content is the SDK echoing our prompt, which the runtime already recorded as `user.message` |
 | `stream_event` | `agent.message.start`, `agent.text.delta`, `agent.thinking.delta` | live; see stream events below |
-| `result/success` | `session.status: idle` + `turn.completed` | usage and `costUsd` from the result |
-| `result/error_during_execution` | `session.error` + `turn.completed` |  |
-| `result/error_max_turns` | `session.error` + `turn.completed` |  |
-| `result/error_max_budget_usd` | `session.error` + `turn.completed` |  |
-| `result/error_max_structured_output_retries` | `session.error` + `turn.completed` |  |
+| `result/success` | `session.status: idle` + `runtime.turn.completed` | usage and `costUsd` from the result |
+| `result/error_during_execution` | `session.error` + `runtime.turn.completed` |  |
+| `result/error_max_turns` | `session.error` + `runtime.turn.completed` |  |
+| `result/error_max_budget_usd` | `session.error` + `runtime.turn.completed` |  |
+| `result/error_max_structured_output_retries` | `session.error` + `runtime.turn.completed` |  |
 | **Session lifecycle and context** | | |
 | `system/init` | `provider.custom` |  |
 | `system/status` | `provider.custom` |  |
@@ -226,7 +226,7 @@ them as `provider.custom` too.
 
 **Stop reasons** (`result` subtype):
 
-| `result` subtype | `turn.completed.stopReason` |
+| `result` subtype | `runtime.turn.completed.stopReason` |
 | --- | --- |
 | `success` | `end_turn` |
 | `error_during_execution` | `error` |

@@ -172,7 +172,7 @@ const fake = new FakeProvider()
 fake.onSend = (sessionId, content) => {
   fake.emit(sessionId,
     { kind: 'event', event: { type: 'agent.message.completed', data: { messageId: 'm:0', content: [{ type: 'text', text: 'Hi!' }] } } },
-    { kind: 'event', event: { type: 'turn.completed', data: { stopReason: 'end_turn' } } },
+    { kind: 'event', event: { type: 'runtime.turn.completed', data: { stopReason: 'end_turn' } } },
   )
 }
 const runtime = createRuntime({ store: new MemoryStore(), bus: new MemoryBus(), providers: { fake } })

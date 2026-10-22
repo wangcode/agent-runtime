@@ -98,7 +98,7 @@ export async function startAgentCoreServer(options: AgentCoreServerOptions): Pro
     const untap = session.tap((msg) => {
       if (msg.type !== 'event') return
       res.write(`event: ${msg.event.type}\ndata: ${JSON.stringify(msg.event)}\n\n`)
-      if (msg.event.type === 'turn.completed') finish()
+      if (msg.event.type === 'runtime.turn.completed') finish()
     })
     res.on('close', finish)
     await session.onCommand({ type: 'user_message', id: newId(), content: textContent(body.prompt ?? '') })

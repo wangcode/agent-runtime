@@ -67,7 +67,7 @@ describe('Managed Agents coverage table', () => {
 
   it('passes unknown stop reasons through instead of dropping them', () => {
     const out = run({ ...base, type: 'session.status_idle', stop_reason: { type: 'brand_new_reason' }, stop_details: null })
-    expect(out.at(-1)).toMatchObject({ event: { type: 'turn.completed', data: { stopReason: 'brand_new_reason' } } })
+    expect(out.at(-1)).toMatchObject({ event: { type: 'runtime.turn.completed', data: { stopReason: 'brand_new_reason' } } })
   })
 
   it('only asks for approval when the permission evaluation is ask', () => {

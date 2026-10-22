@@ -32,7 +32,7 @@ export const SDK_MESSAGE_COVERAGE = {
   user: 'mapped', // tool_result blocks -> tool.result (our own prompts are recorded by the runtime)
   assistant: 'mapped', // content blocks, see SDK_CONTENT_BLOCKS
   stream_event: 'mapped', // deltas, see SDK_STREAM_EVENTS / SDK_DELTAS
-  'result/success': 'mapped', // -> session.status idle + turn.completed
+  'result/success': 'mapped', // -> session.status idle + runtime.turn.completed
   'result/error_during_execution': 'mapped', // + session.error
   'result/error_max_turns': 'mapped',
   'result/error_max_budget_usd': 'mapped',
@@ -137,7 +137,7 @@ export const SDK_DELTAS = {
   compaction_delta: 'ignored',
 } as const satisfies Record<SdkDeltaType, 'text' | 'thinking' | 'ignored'>
 
-/** `result` subtypes -> `turn.completed.stopReason`. */
+/** `result` subtypes -> `runtime.turn.completed.stopReason`. */
 export const SDK_RESULT_STOP_REASONS = {
   success: 'end_turn',
   error_during_execution: 'error',

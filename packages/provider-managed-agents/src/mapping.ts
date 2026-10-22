@@ -135,8 +135,8 @@ export function mapEvent(ev: MAEvent, state: MappingState, opts: MapOptions): Pr
     case 'session.status_idle': {
       if (ev.stop_reason.type === 'requires_action') return [event({ type: 'session.status', data: { status: 'requires_action' } })]
       const stopReason: StopReason = (MA_STOP_REASONS as Record<string, StopReason>)[ev.stop_reason.type] ?? ev.stop_reason.type
-      // The runtime puts `session.status: idle` in front of turn.completed itself.
-      return [{ kind: 'event', event: { type: 'turn.completed', data: { stopReason }, ...(id ? { sourceId: id } : {}), ...(raw !== undefined ? { raw } : {}) } }]
+      // The runtime puts `session.status: idle` in front of runtime.turn.completed itself.
+      return [{ kind: 'event', event: { type: 'runtime.turn.completed', data: { stopReason }, ...(id ? { sourceId: id } : {}), ...(raw !== undefined ? { raw } : {}) } }]
     }
     case 'session.status_terminated':
     case 'session.deleted':

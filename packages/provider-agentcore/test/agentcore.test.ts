@@ -16,7 +16,7 @@ class ScriptedDriver implements AgentDriver {
   turn: (s: DriverSession, text: string) => Promise<void> = async (s, text) => {
     s.emit({ type: 'agent.message.completed', data: { messageId: 'm', content: [{ type: 'text', text: `echo ${text}` }] } })
     s.emit({ type: 'session.status', data: { status: 'idle' } })
-    s.emit({ type: 'turn.completed', data: { stopReason: 'end_turn' } })
+    s.emit({ type: 'runtime.turn.completed', data: { stopReason: 'end_turn' } })
     s.setBusy(false)
   }
   start(session: DriverSession) {
@@ -79,10 +79,10 @@ describe('AgentCore provider <-> container runtime', () => {
     const server = await startServer(driver)
     const { runtime } = makeRuntime(server)
     const session = await runtime.createSession({ provider: 'ac', config: { options: { model: 'x' } } })
-    const done = until(session, (e) => e.type === 'turn.completed')
+    const done = until(session, (e) => e.type === 'runtime.turn.completed')
     await session.send('hello')
     const events = await done
-    expect(events.map((e) => e.type)).toEqual(['session.created', 'user.message', 'session.status', 'agent.message.completed', 'session.status', 'turn.completed'])
+    expect(events.map((e) => e.type)).toEqual(['session.created', 'user.message', 'session.status', 'agent.message.completed', 'session.status', 'runtime.turn.completed'])
     expect(events.find((e) => e.type === 'agent.message.completed')).toMatchObject({ data: { content: [{ text: 'echo hello' }] } })
     expect(driver.sessions[0]?.config).toEqual({ options: { model: 'x' } })
     let cursor: unknown
@@ -99,7 +99,7 @@ describe('AgentCore provider <-> container runtime', () => {
       const tool = await s.requestTool({ toolUseId: 'tu1', name: 'lookup', input: { q: 'k' } })
       const approval = await s.requestApproval({ toolUseId: 'tu2', name: 'Bash', input: { command: 'rm -rf /' } })
       s.emit({ type: 'agent.message.completed', data: { messageId: 'm', content: [{ type: 'text', text: `${JSON.stringify(tool.content)} ${approval.behavior} ${approval.message}` }] } })
-      s.emit({ type: 'turn.completed', data: { stopReason: 'end_turn' } })
+      s.emit({ type: 'runtime.turn.completed', data: { stopReason: 'end_turn' } })
       s.setBusy(false)
     }
     const server = await startServer(driver)
@@ -108,7 +108,7 @@ describe('AgentCore provider <-> container runtime', () => {
       approvals: { policy: (req) => (req.name === 'Bash' ? { decision: 'deny', message: 'too dangerous' } : 'ask') },
     })
     const session = await runtime.createSession({ provider: 'ac', config: {} })
-    const done = until(session, (e) => e.type === 'turn.completed')
+    const done = until(session, (e) => e.type === 'runtime.turn.completed')
     await session.send('go')
     const events = await done
     expect(driver.sessions[0]?.tools).toEqual([{ name: 'lookup', description: 'Lookup', inputSchema: { type: 'object' } }])
@@ -125,7 +125,7 @@ describe('AgentCore provider <-> container runtime', () => {
       // Emitted while the client may be disconnected; must be replayed.
       s.emit({ type: 'agent.message.completed', data: { messageId: 'm', content: [{ type: 'text', text: decision.behavior }] } })
       await new Promise<void>((r) => (release = r))
-      s.emit({ type: 'turn.completed', data: { stopReason: 'end_turn' } })
+      s.emit({ type: 'runtime.turn.completed', data: { stopReason: 'end_turn' } })
       s.setBusy(false)
     }
     const server = await startServer(driver)
@@ -140,7 +140,7 @@ describe('AgentCore provider <-> container runtime', () => {
     await waitFor(() => typeof release === 'function')
     for (const ws of getSockets(server)) ws.terminate()
     release()
-    const events = await until(session, (e) => e.type === 'turn.completed')
+    const events = await until(session, (e) => e.type === 'runtime.turn.completed')
     expect(events.filter((e) => e.type === 'agent.message.completed')).toHaveLength(1)
     expect(events.find((e) => e.type === 'agent.message.completed')).toMatchObject({ data: { content: [{ text: 'allow' }] } })
     expect(events.filter((e) => e.type === 'approval.requested')).toHaveLength(1)
@@ -175,7 +175,7 @@ describe('AgentCore provider <-> container runtime', () => {
     driver.turn = (s) =>
       new Promise<void>((resolve) => {
         finish = () => {
-          s.emit({ type: 'turn.completed', data: { stopReason: 'end_turn' } })
+          s.emit({ type: 'runtime.turn.completed', data: { stopReason: 'end_turn' } })
           s.setBusy(false)
           resolve()
         }
@@ -190,7 +190,7 @@ describe('AgentCore provider <-> container runtime', () => {
     expect(busy.status).toBe('HealthyBusy')
     expect((await ping()).time_of_last_update).toBe(busy.time_of_last_update)
     finish()
-    await until(session, (e) => e.type === 'turn.completed')
+    await until(session, (e) => e.type === 'runtime.turn.completed')
     expect((await ping()).status).toBe('Healthy')
   })
 
@@ -202,14 +202,14 @@ describe('AgentCore provider <-> container runtime', () => {
       const loaded = await s.sessionStore.load(key)
       const has = await s.sessionStore.has('sdk-1')
       s.emit({ type: 'provider.custom', data: { name: 'store', payload: { loaded, has } } })
-      s.emit({ type: 'turn.completed', data: { stopReason: 'end_turn' } })
+      s.emit({ type: 'runtime.turn.completed', data: { stopReason: 'end_turn' } })
       s.setBusy(false)
     }
     const server = await startServer(driver)
     const { runtime, store } = makeRuntime(server)
     const session = await runtime.createSession({ provider: 'ac', config: {} })
     await session.send('go')
-    const events = await until(session, (e) => e.type === 'turn.completed')
+    const events = await until(session, (e) => e.type === 'runtime.turn.completed')
     expect(events.find((e) => e.type === 'provider.custom')).toMatchObject({ data: { payload: { loaded: [{ type: 'user', n: 1 }], has: true } } })
     expect(await store.loadTranscript({ projectKey: 'p', sessionId: 'sdk-1' })).toEqual([{ type: 'user', n: 1 }])
   })
@@ -297,12 +297,12 @@ describe('Claude Agent SDK driver', () => {
     const watcher = (async () => {
       for await (const e of session.events()) {
         if (e.type === 'approval.requested') await session.resolveApproval(e.data.approvalId, 'allow')
-        if (e.type === 'turn.completed') return
+        if (e.type === 'runtime.turn.completed') return
       }
     })()
     await session.send('look it up')
     await watcher
-    const events = await until(session, (e) => e.type === 'turn.completed', { includeDeltas: false })
+    const events = await until(session, (e) => e.type === 'runtime.turn.completed', { includeDeltas: false })
 
     const opts = seen.options!
     expect(opts.model).toBe('claude-sonnet-5-5')
@@ -329,7 +329,7 @@ describe('Claude Agent SDK driver', () => {
       'session.status', // running
       'tool.result', // Bash output
       'session.status', // idle
-      'turn.completed',
+      'runtime.turn.completed',
     ])
     expect(events.find((e) => e.type === 'tool.call')).toMatchObject({ data: { toolUseId: 'toolu_1', name: 'lookup', kind: 'custom' } })
     expect(events.find((e) => e.type === 'tool.result')).toMatchObject({ data: { toolUseId: 'toolu_1', content: [{ text: 'found x for toolu_1' }] } })
@@ -345,7 +345,7 @@ describe('Claude Agent SDK driver', () => {
     const session = await runtime.createSession({ provider: 'ac', config: {} })
     expect((await session.capabilities()).systemMessages).toBe('emulated')
     await session.send('hi', { system: 'Answer in French' })
-    const events = await until(session, (e) => e.type === 'turn.completed', { includeDeltas: false })
+    const events = await until(session, (e) => e.type === 'runtime.turn.completed', { includeDeltas: false })
     expect(events.find((e) => e.type === 'user.message')?.data).toEqual({
       content: [{ type: 'text', text: 'hi' }],
       system: [{ type: 'text', text: 'Answer in French' }],

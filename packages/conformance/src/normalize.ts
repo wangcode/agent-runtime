@@ -41,7 +41,7 @@ export function normalize(events: RuntimeEvent[]): NormalizedEvent[] {
       if (typeof data[key] === 'string') data[key] = placeholder(key, data[key] as string)
     }
     delete data.expiresAt
-    if (e.type === 'turn.completed' && data.usage) {
+    if (e.type === 'runtime.turn.completed' && data.usage) {
       const usage = Object.fromEntries(Object.entries(data.usage as Record<string, number>).filter(([, v]) => v !== 0))
       if (Object.keys(usage).length) data.usage = usage
       else delete data.usage

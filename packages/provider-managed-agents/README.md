@@ -71,7 +71,7 @@ API or Console.
 - **Thinking:** assembled from thinking deltas (Managed Agents' `agent.thinking` carries no text),
   even when `deltas: false`.
 - **Usage:** token counts from `span.model_request_end` and cost from the cumulative
-  `session.usage` are summed per turn into `turn.completed.usage`.
+  `session.usage` are summed per turn into `runtime.turn.completed.usage`.
 - **System context:** `send(…, { system })` sends `user.message` followed by `system.message`.
 - **Interrupts:** `user.interrupt`; the runtime reports the turn as `interrupted`.
 - **Deleted sessions:** a 404 from the API marks the session `terminated`.

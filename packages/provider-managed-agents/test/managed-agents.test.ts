@@ -136,9 +136,9 @@ describe('event mapping', () => {
     expect(map({ id: 'i', type: 'session.status_idle', stop_reason: { type: 'requires_action', event_ids: ['x'] }, processed_at: 'x' })).toEqual([
       { kind: 'event', event: { type: 'session.status', data: { status: 'requires_action' }, sourceId: 'i' } },
     ])
-    // The runtime inserts `session.status: idle` before turn.completed itself.
+    // The runtime inserts `session.status: idle` before runtime.turn.completed itself.
     expect(map({ id: 'i', type: 'session.status_idle', stop_reason: { type: 'retries_exhausted' }, processed_at: 'x' })).toEqual([
-      { kind: 'event', event: { type: 'turn.completed', data: { stopReason: 'error' }, sourceId: 'i' } },
+      { kind: 'event', event: { type: 'runtime.turn.completed', data: { stopReason: 'error' }, sourceId: 'i' } },
     ])
     expect(map({ id: 'e', type: 'session.error', error: { type: 'model_overloaded_error', message: 'busy', retry_status: { type: 'retrying' } } })[0]).toMatchObject({
       event: { type: 'session.error', data: { message: 'busy', code: 'model_overloaded_error', retryable: true } },
@@ -308,7 +308,7 @@ describe('ManagedAgentsProvider', () => {
     const done = (async () => {
       for await (const e of session.events()) {
         seen.push(e)
-        if (e.type === 'turn.completed') return
+        if (e.type === 'runtime.turn.completed') return
       }
     })()
     await session.send('find x')
@@ -317,7 +317,7 @@ describe('ManagedAgentsProvider', () => {
     expect(types.slice(0, 7)).toEqual(['session.created', 'user.message', 'session.status', 'agent.message.start', 'agent.text.delta', 'agent.message.completed', 'tool.call'])
     // The tool runs concurrently with the requires_action idle status, so their order may vary.
     expect(types.slice(7, 9).sort()).toEqual(['session.status', 'tool.result'])
-    expect(types.slice(9)).toEqual(['session.status', 'agent.message.completed', 'session.status', 'turn.completed'])
+    expect(types.slice(9)).toEqual(['session.status', 'agent.message.completed', 'session.status', 'runtime.turn.completed'])
     const toolResult = sessions.sent.find((s) => (s.events[0] as { type: string }).type === 'user.custom_tool_result')
     expect(toolResult?.events[0]).toMatchObject({ content: [{ type: 'text', text: 'result for x' }] })
     expect((await session.info()).status).toBe('idle')

@@ -111,7 +111,7 @@ adapter produced the event:
 | One result per call | `tool.result` is deduplicated per `toolUseId`; denied or cancelled approvals produce an error result |
 | Turn start | On `send()` to an idle session, the worker itself emits `user.message` and `session.status: running` |
 | Status | A `session.status` equal to the current status is dropped |
-| Turn end | Before `turn.completed`, the worker emits `session.status: idle` if needed. After an interrupt it sets `stopReason: 'interrupted'`, and it fills `usage` from the per-request usage the adapter reported during the turn |
+| Turn end | Before `runtime.turn.completed`, the worker emits `session.status: idle` if needed. After an interrupt it sets `stopReason: 'interrupted'`, and it fills `usage` from the per-request usage the adapter reported during the turn |
 | Store | The event is appended with the next `seq`; an already-stored `sourceId` is dropped (replays) |
 
 Adapters only translate formats; they cannot break these rules.

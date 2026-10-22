@@ -51,7 +51,7 @@ export interface EventPayloads {
     message?: string
   }
   /** Always immediately preceded by `session.status: idle`. `usage` is the total for this turn. */
-  'turn.completed': { stopReason: StopReason; usage?: Usage }
+  'runtime.turn.completed': { stopReason: StopReason; usage?: Usage }
   'provider.custom': { name: string; payload: unknown }
 }
 

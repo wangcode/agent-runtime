@@ -47,7 +47,7 @@ export interface ConnectContext<Config = unknown> extends ProviderContext<Config
  * - `actions_reset`: the provider lost in-flight requests (e.g. a fresh AgentCore microVM);
  *   outstanding tool/approval requests can never be answered and are cancelled.
  * - `usage`: token/cost usage of one model request; the runtime sums it per turn into
- *   `turn.completed.usage` (unless the adapter's `turn.completed` already carries the turn total).
+ *   `runtime.turn.completed.usage` (unless the adapter's `runtime.turn.completed` already carries the turn total).
  */
 export type ProviderOutput =
   | { kind: 'event'; event: ProviderEvent }
@@ -73,7 +73,7 @@ export interface ProviderCapabilities {
   approvalUpdatedInput: boolean
   /** `full`: thinking text always complete. `best_effort`: assembled from live deltas, may be partial after a reconnect. */
   thinkingContent: 'full' | 'best_effort'
-  /** `turn.completed.usage.costUsd` is provided. */
+  /** `runtime.turn.completed.usage.costUsd` is provided. */
   turnCost: boolean
   /**
    * How `send(…, { system })` is delivered. `native`: a real system-role message the provider keeps

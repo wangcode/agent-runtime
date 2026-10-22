@@ -158,11 +158,11 @@ export function expectedEvents(scenario: Scenario): NormalizedEvent[] {
         case 'drop_connection':
           break
         case 'end':
-          out.push({ type: 'session.status', data: { status: 'idle' } }, { type: 'turn.completed', data: { stopReason: 'end_turn', usage: step.usage } })
+          out.push({ type: 'session.status', data: { status: 'idle' } }, { type: 'runtime.turn.completed', data: { stopReason: 'end_turn', usage: step.usage } })
           break
       }
     }
-    if (interrupted) out.push({ type: 'session.status', data: { status: 'idle' } }, { type: 'turn.completed', data: { stopReason: 'interrupted' } })
+    if (interrupted) out.push({ type: 'session.status', data: { status: 'idle' } }, { type: 'runtime.turn.completed', data: { stopReason: 'interrupted' } })
   }
   return out
 }
