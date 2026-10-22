@@ -37,7 +37,7 @@ export interface ManagedAgentsCursor {
 export interface ManagedAgentsOptions {
   client: Anthropic
   /**
-   * Emit live token deltas (`message.start`, `text.delta`, `thinking.delta`). Default true. Deltas
+   * Emit live token deltas (`agent.message.start`, `agent.text.delta`, `agent.thinking.delta`). Default true. Deltas
    * are always requested from Managed Agents, because thinking text is only available through them.
    */
   deltas?: boolean

@@ -66,7 +66,7 @@ API or Console.
   `user.custom_tool_result`.
 - **Permissions:** tool calls the service evaluates as `ask` go to your approval policy and are
   answered with `user.tool_confirmation`.
-- **Messages:** an `agent.message` with several blocks becomes one `message.completed` per block,
+- **Messages:** an `agent.message` with several blocks becomes one `agent.message.completed` per block,
   with ids shared with the deltas (`<event id>:<block index>`).
 - **Thinking:** assembled from thinking deltas (Managed Agents' `agent.thinking` carries no text),
   even when `deltas: false`.

@@ -72,13 +72,13 @@ describe.skipIf(!url)('postgres', () => {
       fake.emit(
         sid,
         { kind: 'event', event: { type: 'session.status', data: { status: 'running' } } },
-        { kind: 'event', event: { type: 'text.delta', data: { messageId: 'm', text: 'he' } } },
+        { kind: 'event', event: { type: 'agent.text.delta', data: { messageId: 'm', text: 'he' } } },
         { kind: 'tool_request', requestId: `r-${JSON.stringify(content)}`, toolUseId: 't', name: 'echo', input: { v: 'pong' } },
       )
     fake.onToolResult = (sid) =>
       fake.emit(
         sid,
-        { kind: 'event', event: { type: 'message.completed', data: { messageId: 'm', content: [{ type: 'text', text: 'hello' }] } } },
+        { kind: 'event', event: { type: 'agent.message.completed', data: { messageId: 'm', content: [{ type: 'text', text: 'hello' }] } } },
         { kind: 'event', event: { type: 'session.status', data: { status: 'idle' } } },
         { kind: 'event', event: { type: 'turn.completed', data: { stopReason: 'end_turn' } } },
       )
@@ -95,7 +95,7 @@ describe.skipIf(!url)('postgres', () => {
     await remote.send('ping')
     await done
     const types = seen.map((e) => e.type)
-    expect(types).toEqual(expect.arrayContaining(['user.message', 'text.delta', 'tool.result', 'message.completed', 'turn.completed']))
+    expect(types).toEqual(expect.arrayContaining(['user.message', 'agent.text.delta', 'tool.result', 'agent.message.completed', 'turn.completed']))
     expect(seen.find((e) => e.type === 'tool.result')).toMatchObject({ data: { content: [{ type: 'text', text: 'pong' }] } })
     // The instance that received the command took ownership because the session was unowned.
     expect(b.ownedSessions).toContain(session.id)

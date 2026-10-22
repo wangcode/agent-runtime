@@ -76,14 +76,14 @@ describe('event mapping', () => {
     expect(map({ type: 'event_start', event: { id: 'm1', type: 'agent.message' } }, state)).toEqual([])
     const delta = (index: number, text: string) => ({ type: 'event_delta', event_id: 'm1', delta: { type: 'content_delta', content: { type: 'text', text }, index } })
     expect(map(delta(0, 'Hi'), state)).toEqual([
-      { kind: 'event', event: { type: 'message.start', data: { messageId: 'm1:0', kind: 'text' } } },
-      { kind: 'event', event: { type: 'text.delta', data: { messageId: 'm1:0', text: 'Hi', index: 0 } } },
+      { kind: 'event', event: { type: 'agent.message.start', data: { messageId: 'm1:0', kind: 'text' } } },
+      { kind: 'event', event: { type: 'agent.text.delta', data: { messageId: 'm1:0', text: 'Hi', index: 0 } } },
     ])
-    expect(map(delta(0, '!'), state)).toEqual([{ kind: 'event', event: { type: 'text.delta', data: { messageId: 'm1:0', text: '!', index: 0 } } }])
-    expect(map(delta(1, 'Bye'), state)[0]).toEqual({ kind: 'event', event: { type: 'message.start', data: { messageId: 'm1:1', kind: 'text' } } })
+    expect(map(delta(0, '!'), state)).toEqual([{ kind: 'event', event: { type: 'agent.text.delta', data: { messageId: 'm1:0', text: '!', index: 0 } } }])
+    expect(map(delta(1, 'Bye'), state)[0]).toEqual({ kind: 'event', event: { type: 'agent.message.start', data: { messageId: 'm1:1', kind: 'text' } } })
     expect(map({ id: 'm1', type: 'agent.message', content: [{ type: 'text', text: 'Hi!' }, { type: 'text', text: 'Bye' }], processed_at: 'x' }, state)).toEqual([
-      { kind: 'event', event: { type: 'message.completed', data: { messageId: 'm1:0', content: [{ type: 'text', text: 'Hi!' }] }, sourceId: 'm1:0' } },
-      { kind: 'event', event: { type: 'message.completed', data: { messageId: 'm1:1', content: [{ type: 'text', text: 'Bye' }] }, sourceId: 'm1:1' } },
+      { kind: 'event', event: { type: 'agent.message.completed', data: { messageId: 'm1:0', content: [{ type: 'text', text: 'Hi!' }] }, sourceId: 'm1:0' } },
+      { kind: 'event', event: { type: 'agent.message.completed', data: { messageId: 'm1:1', content: [{ type: 'text', text: 'Bye' }] }, sourceId: 'm1:1' } },
     ])
   })
 
@@ -93,7 +93,7 @@ describe('event mapping', () => {
     mapEvent({ type: 'event_start', event: { id: 't1', type: 'agent.thinking' } } as never, state, opts)
     expect(mapEvent({ type: 'event_delta', event_id: 't1', delta: { type: 'content_delta', content: { type: 'text', text: 'deep' } } } as never, state, opts)).toEqual([])
     expect(mapEvent({ id: 't1', type: 'agent.thinking', processed_at: 'x' } as never, state, opts)[0]).toMatchObject({
-      event: { type: 'message.completed', data: { messageId: 't1:0', content: [{ type: 'thinking', thinking: 'deep' }] } },
+      event: { type: 'agent.message.completed', data: { messageId: 't1:0', content: [{ type: 'thinking', thinking: 'deep' }] } },
     })
   })
 
@@ -111,10 +111,10 @@ describe('event mapping', () => {
     const state = newMappingState()
     map({ type: 'event_start', event: { id: 't1', type: 'agent.thinking' } }, state)
     expect(map({ type: 'event_delta', event_id: 't1', delta: { type: 'content_delta', content: { type: 'text', text: 'hmm' } } }, state)[1]).toMatchObject({
-      event: { type: 'thinking.delta', data: { text: 'hmm' } },
+      event: { type: 'agent.thinking.delta', data: { text: 'hmm' } },
     })
     expect(map({ id: 't1', type: 'agent.thinking', processed_at: 'x' }, state)[0]).toMatchObject({
-      event: { type: 'message.completed', data: { messageId: 't1:0', content: [{ type: 'thinking', thinking: 'hmm' }] } },
+      event: { type: 'agent.message.completed', data: { messageId: 't1:0', content: [{ type: 'thinking', thinking: 'hmm' }] } },
     })
   })
 
@@ -200,7 +200,7 @@ describe('ManagedAgentsProvider', () => {
     const msg = ev('agent.message', { content: [{ type: 'text', text: 'yo' }] })
     sessions.push(msg)
     const next = await take(iter, 2)
-    expect(next[0]).toMatchObject({ kind: 'event', event: { type: 'message.completed', sourceId: `${msg.id}:0` } })
+    expect(next[0]).toMatchObject({ kind: 'event', event: { type: 'agent.message.completed', sourceId: `${msg.id}:0` } })
     expect(next[1]).toEqual({ kind: 'cursor', cursor: { lastEventId: msg.id, processedAt: msg.processed_at, costCents: 0 } })
     abort.abort()
   })
@@ -314,10 +314,10 @@ describe('ManagedAgentsProvider', () => {
     await session.send('find x')
     await done
     const types = seen.map((e) => e.type)
-    expect(types.slice(0, 7)).toEqual(['session.created', 'user.message', 'session.status', 'message.start', 'text.delta', 'message.completed', 'tool.call'])
+    expect(types.slice(0, 7)).toEqual(['session.created', 'user.message', 'session.status', 'agent.message.start', 'agent.text.delta', 'agent.message.completed', 'tool.call'])
     // The tool runs concurrently with the requires_action idle status, so their order may vary.
     expect(types.slice(7, 9).sort()).toEqual(['session.status', 'tool.result'])
-    expect(types.slice(9)).toEqual(['session.status', 'message.completed', 'session.status', 'turn.completed'])
+    expect(types.slice(9)).toEqual(['session.status', 'agent.message.completed', 'session.status', 'turn.completed'])
     const toolResult = sessions.sent.find((s) => (s.events[0] as { type: string }).type === 'user.custom_tool_result')
     expect(toolResult?.events[0]).toMatchObject({ content: [{ type: 'text', text: 'result for x' }] })
     expect((await session.info()).status).toBe('idle')

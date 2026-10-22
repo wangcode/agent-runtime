@@ -271,7 +271,7 @@ export class SessionWorker {
 
   private async publishEphemeral(event: ProviderEvent) {
     const chunks: ProviderEvent[] = []
-    if ((event.type === 'text.delta' || event.type === 'thinking.delta') && event.data.text.length > MAX_DELTA_CHARS) {
+    if ((event.type === 'agent.text.delta' || event.type === 'agent.thinking.delta') && event.data.text.length > MAX_DELTA_CHARS) {
       for (let i = 0; i < event.data.text.length; i += MAX_DELTA_CHARS) {
         chunks.push({ ...event, data: { ...event.data, text: event.data.text.slice(i, i + MAX_DELTA_CHARS) } } as ProviderEvent)
       }

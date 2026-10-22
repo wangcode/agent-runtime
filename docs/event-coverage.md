@@ -24,7 +24,7 @@ at runtime. The per-provider tables are linked under [Current mappings](#current
 3. **Runtime never drops the unknown.** If the live API sends something newer than the installed
    SDK knows about:
    - an unknown event or message type becomes `provider.custom`;
-   - an unknown content block is passed through inside `message.completed`;
+   - an unknown content block is passed through inside `agent.message.completed`;
    - an unknown stop reason is passed through as a string.
 
 4. **Tests keep the code and the tables in sync.** Coverage tests run every table entry through the

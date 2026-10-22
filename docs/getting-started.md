@@ -28,7 +28,7 @@ fake.onSend = (sessionId, content) => {
   const text = content.map((b) => ('text' in b ? b.text : '')).join('')
   fake.emit(
     sessionId,
-    { kind: 'event', event: { type: 'message.completed', data: { messageId: `${Date.now()}:0`, content: [{ type: 'text', text: `You said: ${text}` }] } } },
+    { kind: 'event', event: { type: 'agent.message.completed', data: { messageId: `${Date.now()}:0`, content: [{ type: 'text', text: `You said: ${text}` }] } } },
     { kind: 'event', event: { type: 'turn.completed', data: { stopReason: 'end_turn' } } },
   )
 }
@@ -101,7 +101,7 @@ event: session.status
 data: {…"data":{"status":"running"}}
 
 id: 4
-event: message.completed
+event: agent.message.completed
 data: {…"data":{"messageId":"…:0","content":[{"type":"text","text":"You said: hi"}]}}
 
 id: 5

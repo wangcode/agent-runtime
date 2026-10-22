@@ -29,7 +29,7 @@ export interface Scenario {
   turns: Turn[]
   /** How the test answers approval requests. */
   approval?: { decision: 'allow' } | { decision: 'deny'; message: string }
-  /** Interrupt once a message.completed with this text is seen. */
+  /** Interrupt once a agent.message.completed with this text is seen. */
   interruptAfterText?: string
 }
 
@@ -118,10 +118,10 @@ export function expectedEvents(scenario: Scenario): NormalizedEvent[] {
     for (const step of turn.agent) {
       switch (step.kind) {
         case 'thinking':
-          out.push({ type: 'message.completed', data: { messageId: `m${++m}`, content: [{ type: 'thinking', thinking: step.text }] } })
+          out.push({ type: 'agent.message.completed', data: { messageId: `m${++m}`, content: [{ type: 'thinking', thinking: step.text }] } })
           break
         case 'text':
-          out.push({ type: 'message.completed', data: { messageId: `m${++m}`, content: [{ type: 'text', text: step.text }] } })
+          out.push({ type: 'agent.message.completed', data: { messageId: `m${++m}`, content: [{ type: 'text', text: step.text }] } })
           break
         case 'custom_tool': {
           const id = `t${++t}`

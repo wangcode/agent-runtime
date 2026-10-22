@@ -72,7 +72,7 @@ What users see during a failover:
 | `send()` in progress | Waits; it completes when the new owner executes the queued command, or throws after `commandTimeoutMs` (the command still runs later) |
 | Pending approvals | Still answerable; their timeouts keep their original deadline |
 | Custom tool running on the dead instance | Re-run by the new owner (so handlers must be idempotent) |
-| Live token deltas during the gap | Lost; the final text arrives in `message.completed` |
+| Live token deltas during the gap | Lost; the final text arrives in `agent.message.completed` |
 | Interrupt / usage of the turn in progress | May be lost: the next `turn.completed` might show `end_turn` and incomplete `usage` ([open question](behavior-spec.md#open-questions)) |
 
 ### Deploys

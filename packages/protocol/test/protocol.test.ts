@@ -11,7 +11,7 @@ describe('protocol framing', () => {
 
   it('chunks large messages under the frame limit and reassembles them in any order', () => {
     const text = '日本語 "quoted" \\ '.repeat(20_000)
-    const msg: ContainerMessage = { type: 'event', seq: 1, event: { type: 'message.completed', data: { messageId: 'm', content: [{ type: 'text', text }] } } }
+    const msg: ContainerMessage = { type: 'event', seq: 1, event: { type: 'agent.message.completed', data: { messageId: 'm', content: [{ type: 'text', text }] } } }
     const frames = encodeFrames(msg, 4096)
     expect(frames.length).toBeGreaterThan(1)
     for (const f of frames) expect(Buffer.byteLength(f)).toBeLessThanOrEqual(4096)

@@ -106,7 +106,7 @@ for await (const event of session.events({ after: lastSeq, signal })) { … }
 | Option | Default | Description |
 | --- | --- | --- |
 | `after` | `0` | Replay persisted events with `seq > after`, then follow live ones |
-| `includeDeltas` | `true` | Include live `message.start` / `text.delta` / `thinking.delta` |
+| `includeDeltas` | `true` | Include live `agent.message.start` / `agent.text.delta` / `agent.thinking.delta` |
 | `follow` | `true` | `false`: return after the replay |
 | `signal` | — | Abort to stop |
 
@@ -152,7 +152,7 @@ Types: `RuntimeEvent`, `PersistedEvent`, `EventType`, `EventPayloads`, `ContentB
 import { toObservable } from '@agent-runtime/core/rxjs'
 
 const sub = toObservable(() => session.events({ includeDeltas: false }))
-  .pipe(filter((e) => e.type === 'message.completed'))
+  .pipe(filter((e) => e.type === 'agent.message.completed'))
   .subscribe((e) => console.log(e.data.content))
 
 sub.unsubscribe() // stops the underlying subscription
@@ -171,7 +171,7 @@ import { FakeProvider } from '@agent-runtime/core/testing'
 const fake = new FakeProvider()
 fake.onSend = (sessionId, content) => {
   fake.emit(sessionId,
-    { kind: 'event', event: { type: 'message.completed', data: { messageId: 'm:0', content: [{ type: 'text', text: 'Hi!' }] } } },
+    { kind: 'event', event: { type: 'agent.message.completed', data: { messageId: 'm:0', content: [{ type: 'text', text: 'Hi!' }] } } },
     { kind: 'event', event: { type: 'turn.completed', data: { stopReason: 'end_turn' } } },
   )
 }

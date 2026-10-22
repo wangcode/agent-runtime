@@ -58,7 +58,7 @@ export async function runScenario(harness: Harness, scenario: Scenario, timeoutM
           const d = scenario.approval ?? { decision: 'allow' as const }
           void session.resolveApproval(e.data.approvalId, d.decision, d.decision === 'deny' ? d.message : undefined)
         }
-        if (e.type === 'message.completed' && scenario.interruptAfterText) {
+        if (e.type === 'agent.message.completed' && scenario.interruptAfterText) {
           const text = e.data.content.map((b) => ('text' in b ? b.text : '')).join('')
           if (text === scenario.interruptAfterText) void session.interrupt()
         }

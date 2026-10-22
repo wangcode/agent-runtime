@@ -26,7 +26,7 @@ interface RuntimeEvent {
 | Field | Notes |
 | --- | --- |
 | `seq` | Increases by exactly 1 per persisted event of a session, with no gaps. Use it as the SSE id and as your "last seen" marker. |
-| `ephemeral` | `true` for `message.start`, `text.delta`, `thinking.delta`. These are delivered live only: never stored, never replayed, no `seq`. |
+| `ephemeral` | `true` for `agent.message.start`, `agent.text.delta`, `agent.thinking.delta`. These are delivered live only: never stored, never replayed, no `seq`. |
 | `threadId` | Absent for the main agent. With the Agent SDK it is the id of the tool call that started the sub-agent; with Managed Agents, the session thread id. Treat it as an opaque grouping key. |
 | `raw` | Debugging aid. Its shape is provider-specific; don't build features on it. `toSSE()` omits it by default. |
 
@@ -40,15 +40,31 @@ if (event.type === 'tool.call') event.data.name // string
 
 | | Persisted | Live-only |
 | --- | --- | --- |
-| Types | everything except the three on the right | `message.start`, `text.delta`, `thinking.delta` |
+| Types | everything except the three on the right | `agent.message.start`, `agent.text.delta`, `agent.thinking.delta` |
 | Stored | yes | no |
 | `seq` / SSE `id` | yes | no |
 | Replayed after reconnect | yes | no |
 | May be missed | no | yes (disconnects, late subscribers) |
 
 Live events exist only for the typing effect. The final content of every block always arrives in a
-persisted `message.completed`. Pass `includeDeltas: false` to `session.events()` if you don't need
+persisted `agent.message.completed`. Pass `includeDeltas: false` to `session.events()` if you don't need
 them.
+
+## Naming
+
+Event names follow two rules:
+
+- **Conversation content is named after who said it.** `user.message` is what the user sent;
+  `agent.message.start`, `agent.text.delta`, `agent.thinking.delta`, and `agent.message.completed`
+  are what the agent produced.
+- **Everything else is named after the thing it describes**, because more than one party takes
+  part in it: `session.*` (the session), `tool.*` (a tool call: the agent asks, and your handler
+  or the provider answers), `approval.*` (a permission decision by policy, human, or timeout),
+  `turn.*` (one round of work), and `provider.custom`.
+
+This matches the [Agent Client Protocol](https://agentclientprotocol.com), which also uses
+`user_message_chunk` / `agent_message_chunk` / `agent_thought_chunk` for content and `tool_call`
+for tools.
 
 ## Event list and sources
 
@@ -67,10 +83,10 @@ guides: [Managed Agents event mapping](managed-agents.md#event-mapping) and
 | [`session.status`](#session-status) `terminated` | persisted | `session.terminate()` | `session.status_terminated`, `session.deleted`, or a 404 from the API | the SDK session closed |
 | [`session.error`](#session-error) | persisted | a message could not be delivered | `session.error` | `result/error_*`, or an exception from the SDK |
 | [`user.message`](#user-message) | persisted | `send()` (including `system`) | – (`user.message` and `system.message` echoes are ignored) | – (the SDK's echo of our prompt is ignored) |
-| [`message.start`](#message-start-live) | live | – | `event_start` | `stream_event` `content_block_start` (text or thinking) |
-| [`text.delta`](#text-delta-thinking-delta-live) | live | – | `event_delta` for `agent.message` | `stream_event` `text_delta` |
-| [`thinking.delta`](#text-delta-thinking-delta-live) | live | – | `event_delta` for `agent.thinking` | `stream_event` `thinking_delta` |
-| [`message.completed`](#message-completed) | persisted | – | each content block of `agent.message`; `agent.thinking` (text assembled from deltas) | each non-tool content block of an `assistant` message |
+| [`agent.message.start`](#agent-message-start-live) | live | – | `event_start` | `stream_event` `content_block_start` (text or thinking) |
+| [`agent.text.delta`](#agent-text-delta-agent-thinking-delta-live) | live | – | `event_delta` for `agent.message` | `stream_event` `text_delta` |
+| [`agent.thinking.delta`](#agent-text-delta-agent-thinking-delta-live) | live | – | `event_delta` for `agent.thinking` | `stream_event` `thinking_delta` |
+| [`agent.message.completed`](#agent-message-completed) | persisted | – | each content block of `agent.message`; `agent.thinking` (text assembled from deltas) | each non-tool content block of an `assistant` message |
 | [`tool.call`](#tool-call) | persisted | – | `agent.tool_use` (`builtin`), `agent.mcp_tool_use` (`mcp`), `agent.custom_tool_use` (`custom`) | `assistant` blocks `tool_use`, `server_tool_use`, `mcp_tool_use` |
 | [`tool.result`](#tool-result) | persisted | your custom tool handler's result; an error result for a denied or expired approval | `agent.tool_result`, `agent.mcp_tool_result` | `tool_result` blocks in a `user` message |
 | [`approval.requested`](#approval-requested) | persisted | when the approval policy answers `ask` | `agent.tool_use` / `agent.mcp_tool_use` with `evaluated_permission: ask` | `canUseTool` |
@@ -146,7 +162,7 @@ A message you sent with `session.send()`.
 | `content` | `ContentBlock[]` | What the user said |
 | `system` | `ContentBlock[]`, optional | System-level context sent with the message (`send(…, { system })`). Text blocks only. Not something the user typed, so UIs usually don't show it |
 
-### `message.start` *(live)*
+### `agent.message.start` *(live)*
 
 A content block starts streaming.
 
@@ -155,25 +171,25 @@ A content block starts streaming.
 | `messageId` | string | Identifies the block: `<provider message id>:<block index>` (treat as opaque) |
 | `kind` | `'text' \| 'thinking'` | |
 
-### `text.delta` / `thinking.delta` *(live)*
+### `agent.text.delta` / `agent.thinking.delta` *(live)*
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `messageId` | string | Same as the block's `message.start` |
+| `messageId` | string | Same as the block's `agent.message.start` |
 | `text` | string | The next chunk |
-| `index` | number? | Block index (`text.delta` only) |
+| `index` | number? | Block index (`agent.text.delta` only) |
 
-### `message.completed`
+### `agent.message.completed`
 
 The final content of **one** block.
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `messageId` | string | Same as its `message.start` and deltas |
+| `messageId` | string | Same as its `agent.message.start` and deltas |
 | `content` | `[ContentBlock]` | Exactly one block |
 
 ```json
-{ "type": "message.completed", "data": { "messageId": "msg_01AB:0", "content": [{ "type": "text", "text": "Order 42 shipped yesterday." }] } }
+{ "type": "agent.message.completed", "data": { "messageId": "msg_01AB:0", "content": [{ "type": "text", "text": "Order 42 shipped yesterday." }] } }
 ```
 
 ---
@@ -271,13 +287,13 @@ The full list per provider is in [Event coverage](event-coverage.md).
 seq  type                 data
  2   user.message         content: [text "find order 42"]
  3   session.status       running
- –   message.start        messageId "msg_1:0", kind text                       (live)
- –   text.delta           messageId "msg_1:0", "Let me "                       (live)
- –   text.delta           messageId "msg_1:0", "check."                        (live)
- 4   message.completed    messageId "msg_1:0", [text "Let me check."]
+ –   agent.message.start        messageId "msg_1:0", kind text                       (live)
+ –   agent.text.delta           messageId "msg_1:0", "Let me "                       (live)
+ –   agent.text.delta           messageId "msg_1:0", "check."                        (live)
+ 4   agent.message.completed    messageId "msg_1:0", [text "Let me check."]
  5   tool.call            toolUseId "tu_1", lookup_order {id: "42"}, kind custom
  6   tool.result          toolUseId "tu_1", [text "{\"status\":\"shipped\"}"]
- 7   message.completed    messageId "msg_2:0", [text "Order 42 shipped yesterday."]
+ 7   agent.message.completed    messageId "msg_2:0", [text "Order 42 shipped yesterday."]
  8   session.status       idle
  9   turn.completed       end_turn, usage { inputTokens: 812, outputTokens: 64, costUsd: 0.0031 }
 ```
@@ -288,8 +304,8 @@ seq  type                 data
 
 ```
 id: 7
-event: message.completed
-data: {"id":"7","sessionId":"…","seq":7,"ts":"…","type":"message.completed","data":{…}}
+event: agent.message.completed
+data: {"id":"7","sessionId":"…","seq":7,"ts":"…","type":"agent.message.completed","data":{…}}
 
 ```
 

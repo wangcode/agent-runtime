@@ -108,7 +108,7 @@ AgentCore requires **ARM64** images.
 | Concern | How it is handled |
 | --- | --- |
 | Multi-turn conversation | The SDK runs in streaming-input mode; each `send()` pushes a user message into the open session |
-| Typing effect | `includePartialMessages: true`; stream events become `text.delta` / `thinking.delta` |
+| Typing effect | `includePartialMessages: true`; stream events become `agent.text.delta` / `agent.thinking.delta` |
 | Your custom tools | Exposed to the SDK as an in-process MCP server named `runtime`; each call is forwarded to your backend's handler. The SDK sees them as `mcp__runtime__<name>`; events show the plain name |
 | Permissions | `canUseTool` forwards to your backend's approval policy; the session shows `requires_action` while waiting |
 | Bedrock | Configure through `env` (`CLAUDE_CODE_USE_BEDROCK=1`, `AWS_REGION`, optional `ANTHROPIC_DEFAULT_*_MODEL`) |
@@ -137,7 +137,7 @@ type, content block, or delta fails the build until it is added there (see
 | **Conversation** | | |
 | `assistant` | one event per content block (table below) |  |
 | `user` | `tool.result` for each `tool_result` block | other user content is the SDK echoing our prompt, which the runtime already recorded as `user.message` |
-| `stream_event` | `message.start`, `text.delta`, `thinking.delta` | live; see stream events below |
+| `stream_event` | `agent.message.start`, `agent.text.delta`, `agent.thinking.delta` | live; see stream events below |
 | `result/success` | `session.status: idle` + `turn.completed` | usage and `costUsd` from the result |
 | `result/error_during_execution` | `session.error` + `turn.completed` |  |
 | `result/error_max_turns` | `session.error` + `turn.completed` |  |
@@ -196,31 +196,31 @@ them as `provider.custom` too.
 | `tool_use` | `tool.call`: `kind: custom` for your runtime tools (`mcp__runtime__<name>`, reported with the plain name), `kind: mcp` for other `mcp__…` tools, `kind: builtin` otherwise |
 | `server_tool_use` | `tool.call` (`kind: builtin`) |
 | `mcp_tool_use` | `tool.call` (`kind: mcp`) |
-| `text` | `message.completed` with the block unchanged |
-| `thinking` | `message.completed` with the block unchanged |
-| `redacted_thinking` | `message.completed` with the block unchanged |
-| `compaction` | `message.completed` with the block unchanged |
-| `fallback` | `message.completed` with the block unchanged |
-| `container_upload` | `message.completed` with the block unchanged |
-| `mcp_tool_result` | `message.completed` with the block unchanged |
-| `mcp_tool_listing` | `message.completed` with the block unchanged |
-| `web_search_tool_result` | `message.completed` with the block unchanged |
-| `web_fetch_tool_result` | `message.completed` with the block unchanged |
-| `advisor_tool_result` | `message.completed` with the block unchanged |
-| `code_execution_tool_result` | `message.completed` with the block unchanged |
-| `bash_code_execution_tool_result` | `message.completed` with the block unchanged |
-| `text_editor_code_execution_tool_result` | `message.completed` with the block unchanged |
-| `tool_search_tool_result` | `message.completed` with the block unchanged |
-| anything newer | `message.completed` with the block unchanged |
+| `text` | `agent.message.completed` with the block unchanged |
+| `thinking` | `agent.message.completed` with the block unchanged |
+| `redacted_thinking` | `agent.message.completed` with the block unchanged |
+| `compaction` | `agent.message.completed` with the block unchanged |
+| `fallback` | `agent.message.completed` with the block unchanged |
+| `container_upload` | `agent.message.completed` with the block unchanged |
+| `mcp_tool_result` | `agent.message.completed` with the block unchanged |
+| `mcp_tool_listing` | `agent.message.completed` with the block unchanged |
+| `web_search_tool_result` | `agent.message.completed` with the block unchanged |
+| `web_fetch_tool_result` | `agent.message.completed` with the block unchanged |
+| `advisor_tool_result` | `agent.message.completed` with the block unchanged |
+| `code_execution_tool_result` | `agent.message.completed` with the block unchanged |
+| `bash_code_execution_tool_result` | `agent.message.completed` with the block unchanged |
+| `text_editor_code_execution_tool_result` | `agent.message.completed` with the block unchanged |
+| `tool_search_tool_result` | `agent.message.completed` with the block unchanged |
+| anything newer | `agent.message.completed` with the block unchanged |
 
 **Stream events** (inside `stream_event`, live only):
 
 | Stream event / delta | Our event |
 | --- | --- |
 | `message_start` | none (remembers the message id for the deltas) |
-| `content_block_start` (text or thinking) | `message.start` |
-| `content_block_delta` `text_delta` | `text.delta` |
-| `content_block_delta` `thinking_delta` | `thinking.delta` |
+| `content_block_start` (text or thinking) | `agent.message.start` |
+| `content_block_delta` `text_delta` | `agent.text.delta` |
+| `content_block_delta` `thinking_delta` | `agent.thinking.delta` |
 | `input_json_delta`, `citations_delta`, `signature_delta`, `compaction_delta` | none: the final content arrives in the `assistant` message |
 | `content_block_stop`, `message_delta`, `message_stop` | none |
 

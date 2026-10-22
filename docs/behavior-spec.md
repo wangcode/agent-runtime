@@ -31,13 +31,13 @@ Where a provider genuinely cannot do something, the difference is a declared
 ## Messages
 
 6. **One block per event.** Every content block the agent produces (text, thinking, server tool
-   results, …) becomes **exactly one** `message.completed` whose `content` holds that single block.
-7. **Shared message ids.** A block's `messageId` is the same in its `message.start`, its deltas,
-   and its `message.completed`. Its format is `<provider message id>:<block index>`; treat it as
+   results, …) becomes **exactly one** `agent.message.completed` whose `content` holds that single block.
+7. **Shared message ids.** A block's `messageId` is the same in its `agent.message.start`, its deltas,
+   and its `agent.message.completed`. Its format is `<provider message id>:<block index>`; treat it as
    opaque.
-8. **Live start before deltas.** `message.start` comes before the first delta of a block. Both are
-   live-only and may be missed, so the final content is always in `message.completed`.
-9. **Thinking blocks.** Thinking is a `message.completed` with a `thinking` block. How complete it
+8. **Live start before deltas.** `agent.message.start` comes before the first delta of a block. Both are
+   live-only and may be missed, so the final content is always in `agent.message.completed`.
+9. **Thinking blocks.** Thinking is a `agent.message.completed` with a `thinking` block. How complete it
    is depends on the `thinkingContent` capability.
 
 ## Tools

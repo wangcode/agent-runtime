@@ -90,7 +90,7 @@ What it does:
   (`sessionId`) the first time, and `resume` once a transcript exists.
 - **Event mapping.** Turns SDK messages into unified events following a coverage table over every
   SDK message type, content block, and delta. Each non-tool content block becomes one
-  `message.completed`; unknown messages become `provider.custom`, and unknown blocks are passed
+  `agent.message.completed`; unknown messages become `provider.custom`, and unknown blocks are passed
   through. Full table: [Bedrock AgentCore: event mapping](../../docs/agentcore.md#event-mapping).
 
 **Bedrock:** set `CLAUDE_CODE_USE_BEDROCK=1` and `AWS_REGION` in `options.env`. Note that

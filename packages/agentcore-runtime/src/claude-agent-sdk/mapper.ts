@@ -26,8 +26,8 @@ export interface MapperOptions {
 /**
  * Turns Claude Agent SDK messages into unified events, following the coverage tables in
  * coverage.ts. Unknown message types become `provider.custom`; unknown content blocks are passed
- * through in `message.completed`. Each non-tool content block becomes
- * its own `message.completed` with id `<apiMessageId>:<blockIndex>`, matching the ids used by the
+ * through in `agent.message.completed`. Each non-tool content block becomes
+ * its own `agent.message.completed` with id `<apiMessageId>:<blockIndex>`, matching the ids used by the
  * partial-message deltas, so clients can replace streamed previews with final blocks.
  */
 export class SdkEventMapper {
@@ -94,13 +94,13 @@ export class SdkEventMapper {
     const messageId = `${this.currentMessageId ?? 'msg'}:${ev.index ?? 0}`
     if (ev.type === 'content_block_start') {
       const kind = ev.content_block?.type
-      if (kind === 'text' || kind === 'thinking') this.out({ type: 'message.start', data: { messageId, kind } })
+      if (kind === 'text' || kind === 'thinking') this.out({ type: 'agent.message.start', data: { messageId, kind } })
     } else if (ev.type === 'content_block_delta' && ev.delta) {
       const deltaKind = (SDK_DELTAS as Record<string, string>)[ev.delta.type] ?? 'ignored'
       if (deltaKind === 'text' && ev.delta.text) {
-        this.out({ type: 'text.delta', data: { messageId, text: ev.delta.text, index: ev.index ?? 0 } })
+        this.out({ type: 'agent.text.delta', data: { messageId, text: ev.delta.text, index: ev.index ?? 0 } })
       } else if (deltaKind === 'thinking' && ev.delta.thinking) {
-        this.out({ type: 'thinking.delta', data: { messageId, text: ev.delta.thinking } })
+        this.out({ type: 'agent.thinking.delta', data: { messageId, text: ev.delta.thinking } })
       }
     }
   }
@@ -133,7 +133,7 @@ export class SdkEventMapper {
         })
       } else {
         // text, thinking, server tool results, redacted thinking, … and block types we don't know yet.
-        this.out({ type: 'message.completed', data: { messageId: `${apiId}:${index}`, content: [block as ContentBlock] }, raw: msg, sourceId })
+        this.out({ type: 'agent.message.completed', data: { messageId: `${apiId}:${index}`, content: [block as ContentBlock] }, raw: msg, sourceId })
       }
     }
     // Free counters of older messages; the SDK emits one message's blocks contiguously.

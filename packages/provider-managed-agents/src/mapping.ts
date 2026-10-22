@@ -6,7 +6,7 @@ export type { MAEvent }
 export interface MappingState {
   /** Delta stream kind per previewed event id, from `event_start`. */
   deltaKinds: Map<string, 'text' | 'thinking'>
-  /** Block message ids (`<eventId>:<index>`) whose `message.start` was already emitted. */
+  /** Block message ids (`<eventId>:<index>`) whose `agent.message.start` was already emitted. */
   startedBlocks: Set<string>
   /** Thinking text accumulated from deltas (agent.thinking events carry no content). */
   thinking: Map<string, string>
@@ -23,11 +23,11 @@ export const newMappingState = (init: { lastCostCents?: number } = {}): MappingS
 
 export interface MapOptions {
   includeRaw: boolean
-  /** Emit `message.start` / `text.delta` / `thinking.delta`. Thinking text is assembled either way. Default true. */
+  /** Emit `agent.message.start` / `agent.text.delta` / `agent.thinking.delta`. Thinking text is assembled either way. Default true. */
   forwardDeltas?: boolean
 }
 
-/** Message id of one content block; deltas and the final `message.completed` share it (docs/behavior-spec.md). */
+/** Message id of one content block; deltas and the final `agent.message.completed` share it (docs/behavior-spec.md). */
 export const blockMessageId = (eventId: string, index: number): string => `${eventId}:${index}`
 
 /**
@@ -53,7 +53,7 @@ export function mapEvent(ev: MAEvent, state: MappingState, opts: MapOptions): Pr
 
   switch (ev.type) {
     case 'event_start': {
-      // Only remember the kind; message.start is emitted per block on its first delta.
+      // Only remember the kind; agent.message.start is emitted per block on its first delta.
       state.deltaKinds.set(ev.event.id, (MA_DELTA_TYPES as Record<string, 'text' | 'thinking'>)[ev.event.type] ?? 'text')
       return []
     }
@@ -67,20 +67,20 @@ export function mapEvent(ev: MAEvent, state: MappingState, opts: MapOptions): Pr
       const out: ProviderOutput[] = []
       if (!state.startedBlocks.has(messageId)) {
         state.startedBlocks.add(messageId)
-        out.push({ kind: 'event', event: { type: 'message.start', data: { messageId, kind } } })
+        out.push({ kind: 'event', event: { type: 'agent.message.start', data: { messageId, kind } } })
       }
       out.push(
         kind === 'thinking'
-          ? { kind: 'event', event: { type: 'thinking.delta', data: { messageId, text } } }
-          : { kind: 'event', event: { type: 'text.delta', data: { messageId, text, index } } },
+          ? { kind: 'event', event: { type: 'agent.thinking.delta', data: { messageId, text } } }
+          : { kind: 'event', event: { type: 'agent.text.delta', data: { messageId, text, index } } },
       )
       return out
     }
     case 'agent.message': {
       forgetBlocks(state, ev.id)
-      // One message.completed per content block, like every provider (docs/behavior-spec.md).
+      // One agent.message.completed per content block, like every provider (docs/behavior-spec.md).
       return ev.content.map((block, index) =>
-        event({ type: 'message.completed', data: { messageId: blockMessageId(ev.id, index), content: [block as ContentBlock] } }, blockMessageId(ev.id, index)),
+        event({ type: 'agent.message.completed', data: { messageId: blockMessageId(ev.id, index), content: [block as ContentBlock] } }, blockMessageId(ev.id, index)),
       )
     }
     case 'agent.thinking': {
@@ -88,7 +88,7 @@ export function mapEvent(ev: MAEvent, state: MappingState, opts: MapOptions): Pr
       forgetBlocks(state, ev.id)
       return [
         event(
-          { type: 'message.completed', data: { messageId: blockMessageId(ev.id, 0), content: [{ type: 'thinking', thinking }] } },
+          { type: 'agent.message.completed', data: { messageId: blockMessageId(ev.id, 0), content: [{ type: 'thinking', thinking }] } },
           blockMessageId(ev.id, 0),
         ),
       ]

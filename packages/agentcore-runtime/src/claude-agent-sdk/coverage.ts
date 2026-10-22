@@ -89,7 +89,7 @@ export type SdkContentBlockType = SDKAssistantMessage['message']['content'][numb
 
 /**
  * Assistant content blocks:
- * - `message`: emitted as its own `message.completed` (content passed through unchanged).
+ * - `message`: emitted as its own `agent.message.completed` (content passed through unchanged).
  * - `tool_call`: emitted as `tool.call`.
  */
 export const SDK_CONTENT_BLOCKS = {
@@ -118,7 +118,7 @@ type StreamEvent = SDKPartialAssistantMessage['event']
 /** Raw stream events inside `stream_event` messages. Only used for live deltas. */
 export const SDK_STREAM_EVENTS = {
   message_start: 'mapped', // remembers the API message id for delta ids
-  content_block_start: 'mapped', // -> message.start for text/thinking blocks
+  content_block_start: 'mapped', // -> agent.message.start for text/thinking blocks
   content_block_delta: 'mapped', // see SDK_DELTAS
   content_block_stop: 'ignored',
   message_delta: 'ignored',

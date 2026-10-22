@@ -28,7 +28,7 @@ export function storeContract(name: string, makeStore: () => Store | Promise<Sto
       const b = await store.appendEvent(id, { type: 'provider.custom', data: { name: 'x', payload: {} }, raw: { x: 1 } })
       const c = await store.appendEvent(id, { type: 'provider.custom', data: { name: 'x', payload: {} } })
       expect([a?.seq, dup, b?.seq, c?.seq]).toEqual([1, null, 2, 3])
-      const threaded = await store.appendEvent(id, { type: 'message.completed', data: { messageId: 'm', content: [] }, threadId: 'thread_1' })
+      const threaded = await store.appendEvent(id, { type: 'agent.message.completed', data: { messageId: 'm', content: [] }, threadId: 'thread_1' })
       expect(threaded?.threadId).toBe('thread_1')
       expect((await store.readEvents(id, 3, 10))[0]?.threadId).toBe('thread_1')
       expect((await store.readEvents(id, 0, 1))[0]?.threadId).toBeUndefined()

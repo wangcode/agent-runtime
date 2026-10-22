@@ -26,7 +26,7 @@ scenario (provider-neutral steps)
 - **Normalization** (`src/normalize.ts`) strips transport details (ids, timestamps, `raw`) and
   replaces provider ids with placeholders in order of appearance. It removes only the divergences
   listed under *Open questions* in the behaviour spec.
-- **Live deltas** are checked separately: each delta must follow a `message.start` with the same
+- **Live deltas** are checked separately: each delta must follow a `agent.message.start` with the same
   `messageId`, and must belong to a block that completed.
 
 ## Adding a provider

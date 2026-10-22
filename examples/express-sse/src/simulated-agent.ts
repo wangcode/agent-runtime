@@ -29,18 +29,18 @@ export function simulateAgent(fake: FakeProvider, opts: { wordDelayMs?: number }
       fake.emit(sid, { kind: 'event', event: { type: 'session.status', data: { status: 'running' } } })
       const now = await ask(sid, 'tool_request', 'get_time', {})
       const words = `You said "${prompt}". The time is ${now}.`.split(' ')
-      fake.emit(sid, { kind: 'event', event: { type: 'message.start', data: { messageId, kind: 'text' } } })
+      fake.emit(sid, { kind: 'event', event: { type: 'agent.message.start', data: { messageId, kind: 'text' } } })
       for (const word of words) {
         await sleep(delay)
-        fake.emit(sid, { kind: 'event', event: { type: 'text.delta', data: { messageId, text: `${word} ` } } })
+        fake.emit(sid, { kind: 'event', event: { type: 'agent.text.delta', data: { messageId, text: `${word} ` } } })
       }
-      fake.emit(sid, { kind: 'event', event: { type: 'message.completed', data: { messageId, content: [{ type: 'text', text: words.join(' ') }] } } })
+      fake.emit(sid, { kind: 'event', event: { type: 'agent.message.completed', data: { messageId, content: [{ type: 'text', text: words.join(' ') }] } } })
       if (/run|bash|shell/i.test(prompt)) {
         fake.emit(sid, { kind: 'event', event: { type: 'session.status', data: { status: 'requires_action' } } })
         const decision = await ask(sid, 'approval_request', 'Bash', { command: 'ls -la' })
         fake.emit(sid, { kind: 'event', event: { type: 'session.status', data: { status: 'running' } } })
         const text = decision === 'allow' ? 'Ran `ls -la`.' : 'Okay, I will not run it.'
-        fake.emit(sid, { kind: 'event', event: { type: 'message.completed', data: { messageId: `${messageId}-b`, content: [{ type: 'text', text }] } } })
+        fake.emit(sid, { kind: 'event', event: { type: 'agent.message.completed', data: { messageId: `${messageId}-b`, content: [{ type: 'text', text }] } } })
       }
       fake.emit(sid, { kind: 'event', event: { type: 'session.status', data: { status: 'idle' } } })
       fake.emit(sid, { kind: 'event', event: { type: 'turn.completed', data: { stopReason: 'end_turn' } } })

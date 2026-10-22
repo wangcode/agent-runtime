@@ -14,7 +14,7 @@ afterEach(async () => {
 class ScriptedDriver implements AgentDriver {
   sessions: DriverSession[] = []
   turn: (s: DriverSession, text: string) => Promise<void> = async (s, text) => {
-    s.emit({ type: 'message.completed', data: { messageId: 'm', content: [{ type: 'text', text: `echo ${text}` }] } })
+    s.emit({ type: 'agent.message.completed', data: { messageId: 'm', content: [{ type: 'text', text: `echo ${text}` }] } })
     s.emit({ type: 'session.status', data: { status: 'idle' } })
     s.emit({ type: 'turn.completed', data: { stopReason: 'end_turn' } })
     s.setBusy(false)
@@ -82,8 +82,8 @@ describe('AgentCore provider <-> container runtime', () => {
     const done = until(session, (e) => e.type === 'turn.completed')
     await session.send('hello')
     const events = await done
-    expect(events.map((e) => e.type)).toEqual(['session.created', 'user.message', 'session.status', 'message.completed', 'session.status', 'turn.completed'])
-    expect(events.find((e) => e.type === 'message.completed')).toMatchObject({ data: { content: [{ text: 'echo hello' }] } })
+    expect(events.map((e) => e.type)).toEqual(['session.created', 'user.message', 'session.status', 'agent.message.completed', 'session.status', 'turn.completed'])
+    expect(events.find((e) => e.type === 'agent.message.completed')).toMatchObject({ data: { content: [{ text: 'echo hello' }] } })
     expect(driver.sessions[0]?.config).toEqual({ options: { model: 'x' } })
     let cursor: unknown
     await waitFor(() => {
@@ -98,7 +98,7 @@ describe('AgentCore provider <-> container runtime', () => {
     driver.turn = async (s) => {
       const tool = await s.requestTool({ toolUseId: 'tu1', name: 'lookup', input: { q: 'k' } })
       const approval = await s.requestApproval({ toolUseId: 'tu2', name: 'Bash', input: { command: 'rm -rf /' } })
-      s.emit({ type: 'message.completed', data: { messageId: 'm', content: [{ type: 'text', text: `${JSON.stringify(tool.content)} ${approval.behavior} ${approval.message}` }] } })
+      s.emit({ type: 'agent.message.completed', data: { messageId: 'm', content: [{ type: 'text', text: `${JSON.stringify(tool.content)} ${approval.behavior} ${approval.message}` }] } })
       s.emit({ type: 'turn.completed', data: { stopReason: 'end_turn' } })
       s.setBusy(false)
     }
@@ -112,8 +112,8 @@ describe('AgentCore provider <-> container runtime', () => {
     await session.send('go')
     const events = await done
     expect(driver.sessions[0]?.tools).toEqual([{ name: 'lookup', description: 'Lookup', inputSchema: { type: 'object' } }])
-    const final = events.find((e) => e.type === 'message.completed')
-    expect(final?.type === 'message.completed' && final.data.content[0]).toMatchObject({ text: '[{"type":"text","text":"value-of-k"}] deny too dangerous' })
+    const final = events.find((e) => e.type === 'agent.message.completed')
+    expect(final?.type === 'agent.message.completed' && final.data.content[0]).toMatchObject({ text: '[{"type":"text","text":"value-of-k"}] deny too dangerous' })
     expect(events.map((e) => e.type)).toEqual(expect.arrayContaining(['tool.result', 'approval.resolved']))
   })
 
@@ -123,7 +123,7 @@ describe('AgentCore provider <-> container runtime', () => {
     driver.turn = async (s) => {
       const decision = await s.requestApproval({ toolUseId: 'tu', name: 'Write', input: {} })
       // Emitted while the client may be disconnected; must be replayed.
-      s.emit({ type: 'message.completed', data: { messageId: 'm', content: [{ type: 'text', text: decision.behavior }] } })
+      s.emit({ type: 'agent.message.completed', data: { messageId: 'm', content: [{ type: 'text', text: decision.behavior }] } })
       await new Promise<void>((r) => (release = r))
       s.emit({ type: 'turn.completed', data: { stopReason: 'end_turn' } })
       s.setBusy(false)
@@ -141,8 +141,8 @@ describe('AgentCore provider <-> container runtime', () => {
     for (const ws of getSockets(server)) ws.terminate()
     release()
     const events = await until(session, (e) => e.type === 'turn.completed')
-    expect(events.filter((e) => e.type === 'message.completed')).toHaveLength(1)
-    expect(events.find((e) => e.type === 'message.completed')).toMatchObject({ data: { content: [{ text: 'allow' }] } })
+    expect(events.filter((e) => e.type === 'agent.message.completed')).toHaveLength(1)
+    expect(events.find((e) => e.type === 'agent.message.completed')).toMatchObject({ data: { content: [{ text: 'allow' }] } })
     expect(events.filter((e) => e.type === 'approval.requested')).toHaveLength(1)
   })
 
@@ -218,7 +218,7 @@ describe('AgentCore provider <-> container runtime', () => {
     const server = await startServer(new ScriptedDriver())
     const res = await fetch(`http://127.0.0.1:${server.port}/invocations`, { method: 'POST', body: JSON.stringify({ sessionId: 'http-1', prompt: 'hi' }) })
     const text = await res.text()
-    expect(text).toContain('event: message.completed')
+    expect(text).toContain('event: agent.message.completed')
     expect(text).toContain('echo hi')
     expect(text.trim().endsWith('"stopReason":"end_turn"}}')).toBe(true)
   })
@@ -319,7 +319,7 @@ describe('Claude Agent SDK driver', () => {
       'user.message',
       'session.status', // running: emitted by the runtime right after user.message, for every provider
       'provider.custom', // system/init
-      'message.completed',
+      'agent.message.completed',
       'tool.call', // custom lookup
       'tool.result', // from the runtime's handler
       'tool.call', // Bash

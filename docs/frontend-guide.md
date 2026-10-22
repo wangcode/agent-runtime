@@ -21,7 +21,7 @@ const source = new EventSource(`/sessions/${sessionId}/events`)
 
 const TYPES = [
   'session.created', 'session.status', 'session.error',
-  'user.message', 'message.start', 'text.delta', 'thinking.delta', 'message.completed',
+  'user.message', 'agent.message.start', 'agent.text.delta', 'agent.thinking.delta', 'agent.message.completed',
   'tool.call', 'tool.result', 'approval.requested', 'approval.resolved',
   'turn.completed', 'provider.custom',
 ] as const
@@ -52,7 +52,7 @@ interface Block {
   messageId: string
   kind: 'text' | 'thinking' | 'other'
   text: string
-  final: boolean            // false while streaming, true after message.completed
+  final: boolean            // false while streaming, true after agent.message.completed
   content?: ContentBlock[]  // final content
   threadId?: string
 }
@@ -94,7 +94,7 @@ function reduce(s: State, e: RuntimeEvent): State {
       s.items.push({ kind: 'user', content: e.data.content })
       break
 
-    case 'message.start': {
+    case 'agent.message.start': {
       if (s.blocks.has(e.data.messageId)) break
       const block: Block = { messageId: e.data.messageId, kind: e.data.kind, text: '', final: false, threadId: e.threadId }
       s.blocks.set(block.messageId, block)
@@ -102,14 +102,14 @@ function reduce(s: State, e: RuntimeEvent): State {
       break
     }
 
-    case 'text.delta':
-    case 'thinking.delta': {
+    case 'agent.text.delta':
+    case 'agent.thinking.delta': {
       const block = s.blocks.get(e.data.messageId)
       if (block && !block.final) block.text += e.data.text
       break
     }
 
-    case 'message.completed': {
+    case 'agent.message.completed': {
       const [content] = e.data.content
       const text = content?.type === 'text' ? (content as { text: string }).text
         : content?.type === 'thinking' ? (content as { thinking: string }).thinking : ''
@@ -165,8 +165,8 @@ function reduce(s: State, e: RuntimeEvent): State {
 The guarantees that make this reducer correct are in the [behaviour spec](behavior-spec.md). In
 short:
 
-- **Text blocks.** A text or thinking block streams as `message.start` → deltas →
-  `message.completed`, all with the same `messageId`. The completed event replaces whatever was
+- **Text blocks.** A text or thinking block streams as `agent.message.start` → deltas →
+  `agent.message.completed`, all with the same `messageId`. The completed event replaces whatever was
   streamed.
 - **Tool calls.** `tool.call` always comes before the approval and result events for the same
   `toolUseId`, and every call gets exactly one `tool.result`.
@@ -232,7 +232,7 @@ which is useful for per-message cost display.
 
 - [ ] One listener per handled event type (no `onmessage`)
 - [ ] Skip persisted events with `seq <= lastSeq`
-- [ ] Replace streamed text with `message.completed`
+- [ ] Replace streamed text with `agent.message.completed`
 - [ ] Close approval dialogs on `approval.resolved`, treat HTTP 409 as "already answered"
 - [ ] Gate "edit and approve" on `approvalUpdatedInput`
 - [ ] Ignore event types and fields you don't recognise

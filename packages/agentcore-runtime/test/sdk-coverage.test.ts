@@ -57,13 +57,13 @@ describe('Claude Agent SDK coverage table', () => {
   it.each(Object.entries(SDK_CONTENT_BLOCKS))('assistant block %s is kept as %s', (blockType, handling) => {
     const block = { type: blockType, id: 'toolu_1', name: 'Bash', input: {} }
     const events = run({ type: 'assistant', uuid: 'a', message: { id: 'msg', content: [block] } })
-    expect(events.map((e) => e.type)).toEqual([handling === 'tool_call' ? 'tool.call' : 'message.completed'])
+    expect(events.map((e) => e.type)).toEqual([handling === 'tool_call' ? 'tool.call' : 'agent.message.completed'])
     if (handling === 'message') expect(events[0]).toMatchObject({ data: { content: [block] } })
   })
 
   it.each(Object.entries(SDK_DELTAS))('delta %s -> %s', (deltaType, kind) => {
     const events = run({ type: 'stream_event', event: { type: 'content_block_delta', index: 0, delta: { type: deltaType, text: 'x', thinking: 'x' } } })
-    expect(events.map((e) => e.type)).toEqual(kind === 'ignored' ? [] : [`${kind}.delta`])
+    expect(events.map((e) => e.type)).toEqual(kind === 'ignored' ? [] : [`agent.${kind}.delta`])
   })
 
   it('keeps what a newer SDK might send', () => {
@@ -72,7 +72,7 @@ describe('Claude Agent SDK coverage table', () => {
     expect(run({ type: 'system', subtype: 'brand_new', uuid: 'x' })).toMatchObject([{ type: 'provider.custom', data: { name: 'system/brand_new' } }])
     // unknown content block -> passed through
     expect(run({ type: 'assistant', uuid: 'a', message: { id: 'm', content: [{ type: 'hologram', data: 1 }] } })).toMatchObject([
-      { type: 'message.completed', data: { content: [{ type: 'hologram', data: 1 }] } },
+      { type: 'agent.message.completed', data: { content: [{ type: 'hologram', data: 1 }] } },
     ])
     // unknown result subtype still ends the turn
     expect(run({ type: 'result', subtype: 'error_brand_new', uuid: 'r', is_error: true, errors: ['x'] }).map((e) => e.type)).toEqual([
@@ -83,7 +83,7 @@ describe('Claude Agent SDK coverage table', () => {
 
   it('attributes subagent messages to their thread', () => {
     const events = run({ type: 'assistant', uuid: 'a', parent_tool_use_id: 'toolu_task', message: { id: 'm', content: [{ type: 'text', text: 'sub' }] } })
-    expect(events).toMatchObject([{ type: 'message.completed', threadId: 'toolu_task' }])
+    expect(events).toMatchObject([{ type: 'agent.message.completed', threadId: 'toolu_task' }])
     expect(run({ type: 'assistant', uuid: 'b', parent_tool_use_id: null, message: { id: 'n', content: [{ type: 'text', text: 'main' }] } })[0]?.threadId).toBeUndefined()
   })
 })

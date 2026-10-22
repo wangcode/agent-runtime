@@ -242,7 +242,7 @@ export class Runtime {
           const batch: PersistedEvent[] = await store.readEvents(sessionId, cursor, 500)
           for (const ev of batch) {
             cursor = ev.seq
-            if (ev.type === 'message.completed') completed.add(ev.data.messageId)
+            if (ev.type === 'agent.message.completed') completed.add(ev.data.messageId)
             if (ev.type === 'session.status' && ev.data.status === 'terminated') terminated = true
             yield ev
           }

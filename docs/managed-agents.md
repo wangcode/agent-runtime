@@ -82,13 +82,13 @@ so a different instance can resume after a takeover.
 | *(you call `send('find order 42')`)* | `user.message`, `session.status: running` |
 | `user.message` (echo) | — |
 | `session.status_running` | — (already running) |
-| `event_start` + `event_delta` (`agent.message`) | `message.start`, `text.delta` (live) |
-| `agent.message` with one text block | `message.completed` (`messageId: "<event id>:0"`) |
+| `event_start` + `event_delta` (`agent.message`) | `agent.message.start`, `agent.text.delta` (live) |
+| `agent.message` with one text block | `agent.message.completed` (`messageId: "<event id>:0"`) |
 | `agent.custom_tool_use` `lookup_order` | `tool.call` (`kind: custom`); your handler runs |
 | `session.status_idle` (`requires_action`) | `session.status: requires_action` |
 | *(handler returns; runtime sends `user.custom_tool_result`)* | `tool.result` |
 | `session.status_running` | `session.status: running` |
-| `agent.message` | `message.completed` |
+| `agent.message` | `agent.message.completed` |
 | `span.model_request_end` ×2, `session.usage` | — (summed into the turn's usage) |
 | `session.status_idle` (`end_turn`) | `session.status: idle`, `turn.completed` (`usage` with tokens and `costUsd`) |
 
@@ -117,11 +117,11 @@ an SDK upgrade that adds a type fails the build until it is added there (see
 | Managed Agents event | Our event | Notes |
 | --- | --- | --- |
 | **Stream previews** | | |
-| `event_start` | `message.start` | live; id `<event id>:<block index>` |
-| `event_delta` | `text.delta` / `thinking.delta` | live; `agent.message` deltas become text, `agent.thinking` deltas become thinking |
+| `event_start` | `agent.message.start` | live; id `<event id>:<block index>` |
+| `event_delta` | `agent.text.delta` / `agent.thinking.delta` | live; `agent.message` deltas become text, `agent.thinking` deltas become thinking |
 | **Agent events** | | |
-| `agent.message` | `message.completed`, one per content block | `text` and `redacted` blocks; id `<event id>:<block index>`, shared with the deltas |
-| `agent.thinking` | `message.completed` with a `thinking` block | the event has no text; it is assembled from thinking deltas |
+| `agent.message` | `agent.message.completed`, one per content block | `text` and `redacted` blocks; id `<event id>:<block index>`, shared with the deltas |
+| `agent.thinking` | `agent.message.completed` with a `thinking` block | the event has no text; it is assembled from thinking deltas |
 | `agent.tool_use` | `tool.call` (`kind: builtin`) | plus an approval request when `evaluated_permission` is `ask` |
 | `agent.mcp_tool_use` | `tool.call` (`kind: mcp`) | plus an approval request when `evaluated_permission` is `ask` |
 | `agent.custom_tool_use` | `tool.call` (`kind: custom`) | plus a call to your tool handler; its result becomes `tool.result` |

@@ -136,8 +136,8 @@ Emit the unified events defined in the [event model](event-model.md), following 
 
 | The provider reports | Yield |
 | --- | --- |
-| a text/thinking block streaming | `message.start` once, then `text.delta` / `thinking.delta` with `messageId: <message id>:<block index>` |
-| a finished content block | one `message.completed` per block, same `messageId`, `content: [block]` |
+| a text/thinking block streaming | `agent.message.start` once, then `agent.text.delta` / `agent.thinking.delta` with `messageId: <message id>:<block index>` |
+| a finished content block | one `agent.message.completed` per block, same `messageId`, `content: [block]` |
 | the agent calls a built-in or MCP tool | `tool.call` with `kind: 'builtin' \| 'mcp'`; its `tool.result` when done |
 | the agent calls one of the runtime's custom tools | `tool.call` with `kind: 'custom'` **and** a `tool_request` output |
 | a tool call needs permission | `tool.call`, then an `approval_request` output |
@@ -191,7 +191,7 @@ See the [conformance README](../packages/conformance/README.md).
 - [ ] `capabilities` declared truthfully; unsupported features throw `CapabilityError`
 - [ ] `ready` yielded only once events can no longer be missed
 - [ ] Stable `sourceId` on every persisted event
-- [ ] One `message.completed` per block; deltas share its `messageId`
+- [ ] One `agent.message.completed` per block; deltas share its `messageId`
 - [ ] `tool.call` for every tool use; `tool_request` for custom tools; `approval_request` for permissions
 - [ ] No `user.message`, custom-tool `tool.result`, or `idle` status emitted
 - [ ] Coverage table with `satisfies Record<…>`; unknown types become `provider.custom`
@@ -226,11 +226,11 @@ export const myDriver: AgentDriver = {
       async sendMessage(content) {
         session.setBusy(true)
         const messageId = `${crypto.randomUUID()}:0`
-        session.emit({ type: 'message.start', data: { messageId, kind: 'text' } })
+        session.emit({ type: 'agent.message.start', data: { messageId, kind: 'text' } })
         void agent.run(content, {
-          onText: (text) => session.emit({ type: 'text.delta', data: { messageId, text } }),
+          onText: (text) => session.emit({ type: 'agent.text.delta', data: { messageId, text } }),
           onDone: (fullText, usage) => {
-            session.emit({ type: 'message.completed', data: { messageId, content: [{ type: 'text', text: fullText }] } })
+            session.emit({ type: 'agent.message.completed', data: { messageId, content: [{ type: 'text', text: fullText }] } })
             session.emit({ type: 'turn.completed', data: { stopReason: 'end_turn', usage } })
             session.setBusy(false)
           },

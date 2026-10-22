@@ -36,10 +36,10 @@ export interface EventPayloads {
     /** System-level context sent with this message (`send(…, { system })`); text blocks only. */
     system?: ContentBlock[]
   }
-  'message.start': { messageId: string; kind: 'text' | 'thinking' }
-  'text.delta': { messageId: string; text: string; index?: number }
-  'thinking.delta': { messageId: string; text: string }
-  'message.completed': { messageId: string; content: ContentBlock[] }
+  'agent.message.start': { messageId: string; kind: 'text' | 'thinking' }
+  'agent.text.delta': { messageId: string; text: string; index?: number }
+  'agent.thinking.delta': { messageId: string; text: string }
+  'agent.message.completed': { messageId: string; content: ContentBlock[] }
   'tool.call': { toolUseId: string; name: string; input: unknown; kind: ToolKind; mcpServer?: string }
   'tool.result': { toolUseId: string; content: ContentBlock[]; isError?: boolean }
   'approval.requested': { approvalId: string; toolUseId: string; name: string; input: unknown; expiresAt?: string }
@@ -58,7 +58,7 @@ export interface EventPayloads {
 export type EventType = keyof EventPayloads
 
 /** Event types that are only delivered live and never persisted. */
-export const EPHEMERAL_EVENT_TYPES: ReadonlySet<EventType> = new Set(['message.start', 'text.delta', 'thinking.delta'])
+export const EPHEMERAL_EVENT_TYPES: ReadonlySet<EventType> = new Set(['agent.message.start', 'agent.text.delta', 'agent.thinking.delta'])
 
 export const isEphemeralType = (type: EventType): boolean => EPHEMERAL_EVENT_TYPES.has(type)
 

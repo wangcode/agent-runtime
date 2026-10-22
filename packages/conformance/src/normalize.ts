@@ -52,17 +52,17 @@ export function normalize(events: RuntimeEvent[]): NormalizedEvent[] {
 }
 
 /**
- * Live-delta rules that hold regardless of timing: every delta follows a `message.start` with the
+ * Live-delta rules that hold regardless of timing: every delta follows a `agent.message.start` with the
  * same messageId, and (when nothing was lost) belongs to a block that later completed.
  */
 export function deltaViolations(events: RuntimeEvent[], opts: { requireCompletion: boolean }): string[] {
   const started = new Set<string>()
-  const completed = new Set(events.filter((e) => e.type === 'message.completed').map((e) => (e.data as { messageId: string }).messageId))
+  const completed = new Set(events.filter((e) => e.type === 'agent.message.completed').map((e) => (e.data as { messageId: string }).messageId))
   const problems: string[] = []
   for (const e of events) {
-    if (e.type === 'message.start') started.add(e.data.messageId)
-    if (e.type === 'text.delta' || e.type === 'thinking.delta') {
-      if (!started.has(e.data.messageId)) problems.push(`${e.type} for ${e.data.messageId} before message.start`)
+    if (e.type === 'agent.message.start') started.add(e.data.messageId)
+    if (e.type === 'agent.text.delta' || e.type === 'agent.thinking.delta') {
+      if (!started.has(e.data.messageId)) problems.push(`${e.type} for ${e.data.messageId} before agent.message.start`)
       if (opts.requireCompletion && !completed.has(e.data.messageId)) problems.push(`${e.type} for ${e.data.messageId} never completed`)
     }
   }

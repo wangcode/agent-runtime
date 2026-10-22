@@ -57,9 +57,9 @@ const agentReplies = (fake: FakeProvider, text: string) => {
     fake.emit(
       sessionId,
       { kind: 'event', event: { type: 'session.status', data: { status: 'running' } } },
-      { kind: 'event', event: { type: 'message.start', data: { messageId: 'm1', kind: 'text' } } },
-      { kind: 'event', event: { type: 'text.delta', data: { messageId: 'm1', text: text.slice(0, 3) } } },
-      { kind: 'event', event: { type: 'message.completed', data: { messageId: 'm1', content: [{ type: 'text', text }] }, sourceId: 'p1' } },
+      { kind: 'event', event: { type: 'agent.message.start', data: { messageId: 'm1', kind: 'text' } } },
+      { kind: 'event', event: { type: 'agent.text.delta', data: { messageId: 'm1', text: text.slice(0, 3) } } },
+      { kind: 'event', event: { type: 'agent.message.completed', data: { messageId: 'm1', content: [{ type: 'text', text }] }, sourceId: 'p1' } },
       { kind: 'event', event: { type: 'session.status', data: { status: 'idle' } } },
       { kind: 'event', event: { type: 'turn.completed', data: { stopReason: 'end_turn' } } },
     )
@@ -78,14 +78,14 @@ describe('runtime basics', () => {
       'session.created',
       'user.message',
       'session.status',
-      'message.start',
-      'text.delta',
-      'message.completed',
+      'agent.message.start',
+      'agent.text.delta',
+      'agent.message.completed',
       'session.status',
       'turn.completed',
     ])
     expect(got.filter((e) => e.seq !== undefined).map((e) => e.seq)).toEqual([1, 2, 3, 4, 5, 6])
-    expect(got.find((e) => e.type === 'text.delta')?.ephemeral).toBe(true)
+    expect(got.find((e) => e.type === 'agent.text.delta')?.ephemeral).toBe(true)
     expect(fake.calls[0]).toMatchObject({ method: 'sendMessage', content: [{ type: 'text', text: 'hi' }] })
     expect((await session.info()).status).toBe('idle')
   })
@@ -104,13 +104,13 @@ describe('runtime basics', () => {
     const { runtime, fake } = setup()
     const session = await runtime.createSession({ provider: 'fake', config: {} })
     await session.send('x')
-    const msg = { kind: 'event' as const, event: { type: 'message.completed' as const, data: { messageId: 'a', content: [] }, sourceId: 'evt_1' } }
+    const msg = { kind: 'event' as const, event: { type: 'agent.message.completed' as const, data: { messageId: 'a', content: [] }, sourceId: 'evt_1' } }
     fake.emit(session.id, msg)
     fake.disconnect(session.id)
     await waitFor(() => fake.connections.length === 2)
     fake.emit(session.id, msg, { kind: 'event', event: { type: 'turn.completed', data: { stopReason: 'end_turn' }, sourceId: 'evt_2' } })
     const all = await collect(session.events({ includeDeltas: false }), (e) => e.type === 'turn.completed')
-    expect(all.filter((e) => e.type === 'message.completed')).toHaveLength(1)
+    expect(all.filter((e) => e.type === 'agent.message.completed')).toHaveLength(1)
   })
 
   it('persists provider cursors and reconnects with them', async () => {
@@ -130,14 +130,14 @@ describe('runtime basics', () => {
     const session = await runtime.createSession({ provider: 'fake', config: {} })
     const completed = firstValueFrom(
       toObservable(() => session.events()).pipe(
-        filter((e) => e.type === 'message.completed'),
+        filter((e) => e.type === 'agent.message.completed'),
         take(1),
         toArray(),
       ),
     )
     await session.send('go')
     const [msg] = await completed
-    expect(msg?.type === 'message.completed' && msg.data.content).toEqual([{ type: 'text', text: 'rx' }])
+    expect(msg?.type === 'agent.message.completed' && msg.data.content).toEqual([{ type: 'text', text: 'rx' }])
   })
 })
 
@@ -286,7 +286,7 @@ describe('multi-instance', () => {
     const remote = await b.runtime.getSession(session.id)
     const events = collect(remote!.events(), (e) => e.type === 'turn.completed')
     await session.send('hi')
-    expect((await events).map((e) => e.type)).toContain('text.delta')
+    expect((await events).map((e) => e.type)).toContain('agent.text.delta')
   })
 
   it('takes over a busy session when the owner dies and resumes pending work', async () => {
@@ -402,8 +402,8 @@ describe('behaviour normalization', () => {
     const { runtime, fake } = setup()
     const session = await runtime.createSession({ provider: 'fake', config: {} })
     await session.send('x')
-    fake.emit(session.id, ev({ type: 'message.completed', data: { messageId: 'm:0', content: [] }, threadId: 'sub_1' }))
-    const msg = (await collect(session.events(), (e) => e.type === 'message.completed')).at(-1)
+    fake.emit(session.id, ev({ type: 'agent.message.completed', data: { messageId: 'm:0', content: [] }, threadId: 'sub_1' }))
+    const msg = (await collect(session.events(), (e) => e.type === 'agent.message.completed')).at(-1)
     expect(msg?.threadId).toBe('sub_1')
   })
 

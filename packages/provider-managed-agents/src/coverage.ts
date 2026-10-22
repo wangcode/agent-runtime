@@ -28,8 +28,8 @@ export type Handling = 'mapped' | 'custom' | 'ignored'
 
 export const MA_EVENT_COVERAGE = {
   // Stream-only previews (never persisted by Managed Agents either).
-  event_start: 'mapped', // -> message.start
-  event_delta: 'mapped', // -> text.delta / thinking.delta
+  event_start: 'mapped', // -> agent.message.start
+  event_delta: 'mapped', // -> agent.text.delta / agent.thinking.delta
 
   // User events: echoes of runtime commands, which the runtime records itself.
   'user.message': 'ignored', // runtime writes user.message
@@ -41,8 +41,8 @@ export const MA_EVENT_COVERAGE = {
   'system.message': 'ignored', // echo of send(…, { system }); recorded on user.message
 
   // Agent events.
-  'agent.message': 'mapped', // -> message.completed
-  'agent.thinking': 'mapped', // -> message.completed (thinking block from deltas)
+  'agent.message': 'mapped', // -> agent.message.completed
+  'agent.thinking': 'mapped', // -> agent.message.completed (thinking block from deltas)
   'agent.tool_use': 'mapped', // -> tool.call (+ approval request when evaluated_permission = ask)
   'agent.mcp_tool_use': 'mapped', // -> tool.call kind=mcp (+ approval request)
   'agent.custom_tool_use': 'mapped', // -> tool.call kind=custom + tool request
@@ -112,7 +112,7 @@ export const MA_DELTA_TYPES = {
 
 export type MAMessageBlockType = BetaManagedAgentsAgentMessageEvent['content'][number]['type']
 
-/** `agent.message` content blocks; all are passed through into `message.completed`. */
+/** `agent.message` content blocks; all are passed through into `agent.message.completed`. */
 export const MA_MESSAGE_BLOCKS = {
   text: 'content',
   redacted: 'content',
