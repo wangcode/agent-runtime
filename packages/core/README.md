@@ -33,6 +33,10 @@ Entry points:
 const runtime = createRuntime({ store, bus, providers: { ma: managedAgents({ client }) } })
 ```
 
+Constructs a `Runtime` and calls `start()`. To control when background work begins (for example
+in a framework's bootstrap hook, as `@agent-runtime/nestjs` does), use `new Runtime(options)` and
+call `start()` yourself.
+
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | `store` | `Store` | *required* | `MemoryStore`, `PgStore`, or your own |
@@ -62,6 +66,8 @@ When to change these options is explained in [Operations](../../docs/operations.
 | `createSession({ provider, config, metadata?, id? })` | Creates the session at the provider and stores it. `metadata` is any JSON you want to keep with the session (user id, tenant, …). `id` lets you choose the session id. Returns a `Session` |
 | `getSession(id)` | A `Session` handle, or `null` if it doesn't exist. Works on every instance |
 | `capabilities(providerKey)` | The provider's `ProviderCapabilities` |
+| `start()` | Starts background work: periodically adopting sessions whose owner died. Idempotent; returns the runtime. Everything else works before `start()`, but the instance won't take over orphaned sessions. Throws after `close()` |
+| `started` | Whether `start()` was called and `close()` wasn't |
 | `close()` | Stops background work and releases owned sessions to other instances. Call on shutdown |
 | `instanceId` | This process's id |
 | `ownedSessions` | Ids of sessions this instance currently owns (for diagnostics) |

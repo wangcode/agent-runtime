@@ -51,6 +51,7 @@ for await (const event of session.events({ after: lastEventId })) {
 | --- | --- |
 | [Frontend guide](docs/frontend-guide.md) | Consuming the event stream in a browser: reducer, rendering, approvals, reconnects |
 | [Event model](docs/event-model.md) | Every event type and field, where each one comes from in every provider, with examples |
+| [NestJS](docs/nestjs.md) | Registering the runtime in a NestJS app, SSE routes, shutdown |
 | [Tools and approvals](docs/tools-and-approvals.md) | Custom tools, approval policies, human approvals, timeouts, `updatedInput` |
 
 **Providers**
@@ -86,6 +87,7 @@ for await (const event of session.events({ after: lastEventId })) {
 | [`@agent-runtime/provider-agentcore`](packages/provider-agentcore/README.md) | Provider for agents running on Bedrock AgentCore (caller side) |
 | [`@agent-runtime/agentcore-runtime`](packages/agentcore-runtime/README.md) | Server that runs inside the AgentCore container, plus the Claude Agent SDK driver |
 | [`@agent-runtime/protocol`](packages/protocol/README.md) | WebSocket protocol shared by the two AgentCore packages |
+| [`@agent-runtime/nestjs`](packages/nestjs/README.md) | NestJS module, `@Sse()` helpers with resume, and an exception filter |
 | [`@agent-runtime/conformance`](packages/conformance/README.md) | *(private)* Scenarios every provider must pass to behave identically |
 
 ### Examples
@@ -93,6 +95,7 @@ for await (const event of session.events({ after: lastEventId })) {
 | Example | Description |
 | --- | --- |
 | [`examples/express-sse`](examples/express-sse/README.md) | An Express backend with SSE, resume, approvals, and a simulated agent |
+| [`examples/nestjs`](examples/nestjs/README.md) | The same API as a NestJS app, using `@agent-runtime/nestjs` |
 | [`examples/agentcore-container`](examples/agentcore-container/README.md) | Dockerfile and entrypoint for an AgentCore container running the Claude Agent SDK |
 
 ---

@@ -125,9 +125,28 @@ export class Runtime {
         toolCallWaitMs: options.toolCallWaitMs ?? 2_000,
       },
     }
+  }
+
+  /**
+   * Start background work: periodically look for sessions whose owner died and take them over.
+   * Idempotent. `createRuntime()` calls it for you; call it yourself when you construct with
+   * `new Runtime()` (for example once your app has finished booting).
+   *
+   * Everything else works before `start()`: creating sessions, sending, reading events, approvals.
+   * Without it, this instance only never adopts orphaned sessions on its own.
+   */
+  start(): this {
+    if (this.closed) throw new Error('Runtime is closed')
+    if (this.scanTimer) return this
     this.scanTimer = setInterval(() => void this.scanOrphans(), this.internals.options.orphanScanIntervalMs)
     this.scanTimer.unref?.()
     void this.scanOrphans()
+    return this
+  }
+
+  /** Whether `start()` has been called (and `close()` has not). */
+  get started(): boolean {
+    return !!this.scanTimer && !this.closed
   }
 
   get instanceId(): string {
@@ -365,4 +384,5 @@ export class Session {
   }
 }
 
-export const createRuntime = (options: RuntimeOptions): Runtime => new Runtime(options)
+/** Construct a runtime and `start()` it. */
+export const createRuntime = (options: RuntimeOptions): Runtime => new Runtime(options).start()

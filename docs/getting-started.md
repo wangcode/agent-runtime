@@ -201,6 +201,7 @@ process.on('SIGTERM', async () => {
 | To… | Read |
 | --- | --- |
 | Build the UI that consumes these events | [Frontend guide](frontend-guide.md) |
+| Use the runtime in a NestJS app | [NestJS](nestjs.md) |
 | Understand every event and field | [Event model](event-model.md) |
 | Run several instances | [Scaling and failover](scaling-and-failover.md) |
 | Configure, monitor and troubleshoot | [Operations](operations.md) |

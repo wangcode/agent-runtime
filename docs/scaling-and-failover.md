@@ -57,7 +57,7 @@ When the owner of a busy session dies (crash, OOM kill, network partition):
 | --- | --- |
 | 0 s | Owner dies. Its lease (expiry `lease.ttlMs`, default 15 s) is no longer renewed |
 | ≤ 15 s | Lease expires |
-| ≤ 20 s | Another instance's orphan scan (every `orphanScanIntervalMs`, default 5 s) claims the session |
+| ≤ 20 s | Another instance's orphan scan (every `orphanScanIntervalMs`, default 5 s) claims the session. Only started runtimes scan (`createRuntime()` starts them; with `new Runtime()` call `start()`) |
 | +connect | The new owner reconnects to the provider from the stored cursor, re-runs unfinished tool calls, re-arms approval timeouts, re-sends undelivered results, and executes queued commands |
 
 Expect 15–20 seconds of silence with the defaults. Lower `lease.ttlMs` and `orphanScanIntervalMs`

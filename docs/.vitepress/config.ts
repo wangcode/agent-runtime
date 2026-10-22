@@ -1,7 +1,7 @@
 import { defineConfig } from 'vitepress'
 
-const packages = ['core', 'store-postgres', 'provider-managed-agents', 'provider-agentcore', 'agentcore-runtime', 'protocol', 'conformance']
-const examples = ['express-sse', 'agentcore-container']
+const packages = ['core', 'store-postgres', 'provider-managed-agents', 'provider-agentcore', 'agentcore-runtime', 'protocol', 'nestjs', 'conformance']
+const examples = ['express-sse', 'nestjs', 'agentcore-container']
 
 /**
  * Local docs site: `pnpm docs:dev`. Renders the repository's Markdown in place (docs/*.md and every
@@ -55,6 +55,7 @@ export default defineConfig({
         text: 'Building an application',
         items: [
           { text: 'Frontend guide', link: '/docs/frontend-guide' },
+          { text: 'NestJS', link: '/docs/nestjs' },
           { text: 'Event model', link: '/docs/event-model' },
           { text: 'Tools and approvals', link: '/docs/tools-and-approvals' },
         ],

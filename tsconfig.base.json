@@ -46,6 +46,9 @@
       ],
       "@agent-runtime/agentcore-runtime/claude-agent-sdk": [
         "packages/agentcore-runtime/src/claude-agent-sdk/index.ts"
+      ],
+      "@agent-runtime/nestjs": [
+        "packages/nestjs/src/index.ts"
       ]
     }
   }

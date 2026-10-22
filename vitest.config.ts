@@ -15,6 +15,7 @@ export default defineConfig({
       '@agent-runtime/provider-managed-agents': pkg('provider-managed-agents'),
       '@agent-runtime/provider-agentcore': pkg('provider-agentcore'),
       '@agent-runtime/agentcore-runtime': pkg('agentcore-runtime'),
+      '@agent-runtime/nestjs': pkg('nestjs'),
     },
   },
   test: {

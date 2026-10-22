@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { firstValueFrom, filter, take, toArray } from 'rxjs'
-import { CapabilityError, MemoryBus, MemoryStore, type Runtime, type RuntimeEvent, type RuntimeOptions, createRuntime } from '@agent-runtime/core'
+import { CapabilityError, MemoryBus, MemoryStore, Runtime, type RuntimeEvent, type RuntimeOptions, createRuntime } from '@agent-runtime/core'
 import { toObservable } from '@agent-runtime/core/rxjs'
 import { FakeProvider } from '@agent-runtime/core/testing'
 
@@ -316,6 +316,28 @@ describe('multi-instance', () => {
     shared.fake.emit(session.id, { kind: 'tool_request', requestId: 'tr', toolUseId: 'tu2', name: 'slow', input: {} })
     await waitFor(() => shared.fake.calls.some((c) => c.method === 'submitToolResult'))
     expect(runs).toBe(1)
+  })
+
+  it('only adopts orphaned sessions after start()', async () => {
+    const shared = { store: new MemoryStore(), bus: new MemoryBus(), fake: new FakeProvider() }
+    const a = setup({}, shared)
+    const session = await a.runtime.createSession({ provider: 'fake', config: {} })
+    await session.send('x')
+    const workers = (a.runtime as unknown as { workers: Map<string, { stop(o: { release: boolean }): Promise<void> }> }).workers
+    await workers.get(session.id)?.stop({ release: false })
+    await a.runtime.close()
+
+    const b = new Runtime({ store: shared.store, bus: shared.bus, providers: { fake: shared.fake }, orphanScanIntervalMs: 50, lease: { ttlMs: 300, renewIntervalMs: 100 } })
+    runtimes.push(b)
+    expect(b.started).toBe(false)
+    await new Promise((r) => setTimeout(r, 500)) // lease expired, but nobody scans
+    expect(b.ownedSessions).toEqual([])
+    expect(b.start().start()).toBe(b) // idempotent
+    expect(b.started).toBe(true)
+    await waitFor(() => b.ownedSessions.includes(session.id))
+    await b.close()
+    expect(b.started).toBe(false)
+    expect(() => b.start()).toThrow(/closed/)
   })
 
   it('releases ownership when idle and re-acquires on the next command', async () => {
