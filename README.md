@@ -50,7 +50,7 @@ for await (const event of session.events({ after: lastEventId })) {
 | Guide | What you will learn |
 | --- | --- |
 | [Frontend guide](docs/frontend-guide.md) | Consuming the event stream in a browser: reducer, rendering, approvals, reconnects |
-| [Event model](docs/event-model.md) | Every event type and field, with examples |
+| [Event model](docs/event-model.md) | Every event type and field, where each one comes from in every provider, with examples |
 | [Tools and approvals](docs/tools-and-approvals.md) | Custom tools, approval policies, human approvals, timeouts, `updatedInput` |
 
 **Providers**

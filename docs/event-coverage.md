@@ -2,7 +2,7 @@
 
 Providers evolve: new event types, new content blocks, new stop reasons. This page explains how
 `agent-runtime` makes sure such changes are **noticed** at upgrade time and **never silently lost**
-at runtime, and lists what currently happens to every provider event.
+at runtime. The per-provider tables are linked under [Current mappings](#current-mappings).
 
 ## The rules
 
@@ -78,84 +78,17 @@ Because the container is deployed separately from your backend, the two can run 
 versions. A newer container may emit a unified event type an older backend doesn't know. It is
 still stored and delivered; frontends should ignore event types they don't recognise.
 
-## Claude Managed Agents
+## Current mappings
 
-Source: the [Managed Agents event reference](https://platform.claude.com/docs/en/managed-agents/reference)
-and `@anthropic-ai/sdk` 0.137.
+The full tables, one row per provider type, live in each provider's guide:
 
-| Event | Handling | Becomes |
+| Provider | Mapping | Source |
 | --- | --- | --- |
-| `event_start` | mapped | `message.start` |
-| `event_delta` | mapped | `text.delta` / `thinking.delta` |
-| `agent.message` | mapped | one `message.completed` per content block (including `redacted`), id `<event id>:<index>` |
-| `agent.thinking` | mapped | `message.completed` with a thinking block assembled from deltas |
-| `agent.tool_use` | mapped | `tool.call` (`builtin`); plus an approval request when `evaluated_permission` is `ask` |
-| `agent.mcp_tool_use` | mapped | `tool.call` (`mcp`); plus an approval request when `ask` |
-| `agent.custom_tool_use` | mapped | `tool.call` (`custom`) and a tool request to your handler |
-| `agent.tool_result`, `agent.mcp_tool_result` | mapped | `tool.result` |
-| `session.status_running` | mapped | `session.status: running` |
-| `session.status_idle` | mapped | `turn.completed` (the runtime puts `session.status: idle` before it); `requires_action` → `session.status: requires_action` |
-| `session.status_terminated`, `session.deleted` | mapped | `session.status: terminated` |
-| `session.error` | mapped | `session.error` |
-| `span.model_request_end` | mapped | token counts summed into `turn.completed.usage` |
-| `session.usage` | mapped | cumulative cost → per-turn `turn.completed.usage.costUsd` |
-| `user.message`, `user.interrupt`, `user.custom_tool_result`, `user.tool_confirmation`, `user.tool_result` | ignored | echoes; the runtime records `user.message`, `tool.result`, and `approval.resolved` itself |
-| `system.message` | ignored | echo of `send(…, { system })`, which the runtime records on `user.message` |
-| `user.define_outcome` | custom | |
-| `agent.thread_context_compacted`, `agent.thread_message_received`, `agent.thread_message_sent` | custom | |
-| `session.status_rescheduled`, `session.updated` | custom | |
-| `session.thread_created`, `session.thread_status_*` | custom | |
-| `span.model_request_start`, `span.outcome_evaluation_*` | custom | |
-| `workflow_run.*` | custom | |
+| Claude Managed Agents | [Managed Agents: event mapping](managed-agents.md#event-mapping) | `@anthropic-ai/sdk` 0.137, [event reference](https://platform.claude.com/docs/en/managed-agents/reference) |
+| Claude Agent SDK | [Bedrock AgentCore: event mapping](agentcore.md#event-mapping) | `@anthropic-ai/claude-agent-sdk` 0.3.305 |
 
-| Stop reason (`session.status_idle`) | `turn.completed.stopReason` |
-| --- | --- |
-| `end_turn` | `end_turn` |
-| `requires_action` | *(no turn.completed; status `requires_action`)* |
-| `retries_exhausted` | `error` |
-| `budget_reached` | `budget` |
-| `refusal` | `refusal` |
-
-`evaluated_permission`: only `ask` creates an approval request; `allow` and `deny` were already
-decided by the service.
-
-> Because user events are ignored, user messages sent to a session **outside** the runtime (for
-> example from the Anthropic Console) do not appear in the runtime's history.
-
-## Claude Agent SDK
-
-Source: `@anthropic-ai/claude-agent-sdk` 0.3.305.
-
-| Message (`type` or `type/subtype`) | Handling | Becomes |
-| --- | --- | --- |
-| `assistant` | mapped | one event per content block (see below) |
-| `user` | mapped | `tool.result` for tool results; your own prompts are recorded by the runtime |
-| `stream_event` | mapped | `message.start`, `text.delta`, `thinking.delta` |
-| `result/success` | mapped | `session.status: idle` + `turn.completed (end_turn)` |
-| `result/error_during_execution`, `result/error_max_structured_output_retries` | mapped | `session.error` + `turn.completed (error)` |
-| `result/error_max_turns` | mapped | `session.error` + `turn.completed (max_turns)` |
-| `result/error_max_budget_usd` | mapped | `session.error` + `turn.completed (budget)` |
-| `system/init`, `system/status`, `system/compact_boundary`, `conversation_reset`, `system/worker_shutting_down` | custom | |
-| `system/api_retry`, `rate_limit_event`, `system/model_refusal_fallback`, `system/model_refusal_no_fallback`, `system/mirror_error` | custom | |
-| `system/permission_denied`, `tool_use_summary`, `system/elicitation_complete` | custom | |
-| `system/task_started`, `system/task_updated`, `system/task_progress`, `system/task_notification`, `system/background_tasks_changed` | custom | |
-| `system/notification`, `system/informational`, `system/memory_recall`, `system/files_persisted`, `system/local_command_output` | custom | |
-| `system/session_state_changed` | ignored | the runtime derives `session.status` itself |
-| `tool_progress` | ignored | periodic heartbeat |
-| `system/hook_started`, `system/hook_progress`, `system/hook_response`, `system/control_request_progress`, `system/plugin_install`, `system/commands_changed`, `system/thinking_tokens`, `auth_status`, `prompt_suggestion` | ignored | internal plumbing |
-
-Set `forwardAllMessages: true` on the driver to forward the `ignored` ones as `provider.custom` too.
-
-**Assistant content blocks:**
-
-| Block types | Becomes |
-| --- | --- |
-| `tool_use`, `server_tool_use`, `mcp_tool_use` | `tool.call` (`custom` for your runtime tools, `mcp` for other MCP tools, otherwise `builtin`) |
-| `text`, `thinking`, `redacted_thinking`, `compaction`, `fallback`, `container_upload`, `mcp_tool_result`, `mcp_tool_listing`, `web_search_tool_result`, `web_fetch_tool_result`, `advisor_tool_result`, `code_execution_tool_result`, `bash_code_execution_tool_result`, `text_editor_code_execution_tool_result`, `tool_search_tool_result` | `message.completed` with the block unchanged |
-
-**Stream deltas:** `text_delta` becomes `text.delta` and `thinking_delta` becomes `thinking.delta`.
-`input_json_delta`, `citations_delta`, `signature_delta`, and `compaction_delta` are not streamed;
-their final content arrives in the assistant message.
+For the other direction (each unified event and which provider events produce it), see
+[Event model: event list and sources](event-model.md#event-list-and-sources).
 
 ## Known semantic gaps
 

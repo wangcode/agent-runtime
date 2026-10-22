@@ -50,6 +50,37 @@ Live events exist only for the typing effect. The final content of every block a
 persisted `message.completed`. Pass `includeDeltas: false` to `session.events()` if you don't need
 them.
 
+## Event list and sources
+
+Every event the runtime emits, and where it comes from. **Runtime** means the runtime emits it
+itself, the same way for every provider. The provider columns name the native events it is built
+from. For the reverse direction (every provider event and what it becomes), see the provider
+guides: [Managed Agents event mapping](managed-agents.md#event-mapping) and
+[Agent SDK event mapping](agentcore.md#event-mapping).
+
+| Event | Kind | Runtime | Claude Managed Agents | Claude Agent SDK (AgentCore) |
+| --- | --- | --- | --- | --- |
+| [`session.created`](#session-created) | persisted | `createSession()` | – | – |
+| [`session.status`](#session-status) `running` | persisted | on every `send()` that starts a turn | `session.status_running` (duplicates dropped) | the driver when a message is pushed (duplicates dropped) |
+| [`session.status`](#session-status) `requires_action` | persisted | – | `session.status_idle` with stop reason `requires_action` | `canUseTool` waiting for a decision |
+| [`session.status`](#session-status) `idle` | persisted | right before every `turn.completed` | (from `session.status_idle`) | (from `result`) |
+| [`session.status`](#session-status) `terminated` | persisted | `session.terminate()` | `session.status_terminated`, `session.deleted`, or a 404 from the API | the SDK session closed |
+| [`session.error`](#session-error) | persisted | a message could not be delivered | `session.error` | `result/error_*`, or an exception from the SDK |
+| [`user.message`](#user-message) | persisted | `send()` (including `system`) | – (`user.message` and `system.message` echoes are ignored) | – (the SDK's echo of our prompt is ignored) |
+| [`message.start`](#message-start-live) | live | – | `event_start` | `stream_event` `content_block_start` (text or thinking) |
+| [`text.delta`](#text-delta-thinking-delta-live) | live | – | `event_delta` for `agent.message` | `stream_event` `text_delta` |
+| [`thinking.delta`](#text-delta-thinking-delta-live) | live | – | `event_delta` for `agent.thinking` | `stream_event` `thinking_delta` |
+| [`message.completed`](#message-completed) | persisted | – | each content block of `agent.message`; `agent.thinking` (text assembled from deltas) | each non-tool content block of an `assistant` message |
+| [`tool.call`](#tool-call) | persisted | – | `agent.tool_use` (`builtin`), `agent.mcp_tool_use` (`mcp`), `agent.custom_tool_use` (`custom`) | `assistant` blocks `tool_use`, `server_tool_use`, `mcp_tool_use` |
+| [`tool.result`](#tool-result) | persisted | your custom tool handler's result; an error result for a denied or expired approval | `agent.tool_result`, `agent.mcp_tool_result` | `tool_result` blocks in a `user` message |
+| [`approval.requested`](#approval-requested) | persisted | when the approval policy answers `ask` | `agent.tool_use` / `agent.mcp_tool_use` with `evaluated_permission: ask` | `canUseTool` |
+| [`approval.resolved`](#approval-resolved) | persisted | a decision by policy, human, or timeout | – | – |
+| [`turn.completed`](#turn-completed) | persisted | sums `usage`; sets `stopReason: interrupted` after an interrupt | `session.status_idle` (stop reason mapped); usage from `span.model_request_end` and `session.usage` | `result/*` (stop reason mapped), with its usage and cost |
+| [`provider.custom`](#provider-custom) | persisted | – | every type marked *custom* in the [mapping](managed-agents.md#event-mapping) | every message marked *custom* in the [mapping](agentcore.md#event-mapping) |
+
+A `tool.result` appears once per `toolUseId`. When both the runtime and the provider report a
+result for the same call, the first one wins.
+
 ## Content blocks
 
 Message content uses the Anthropic content block format:

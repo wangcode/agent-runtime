@@ -117,7 +117,138 @@ AgentCore requires **ARM64** images.
 | Interrupt | `query.interrupt()`; the turn ends with `stopReason: 'interrupted'` |
 | Approving with modified input | Supported by the SDK, but **off by default**: enable with `agentCore({ allowUpdatedInput: true })`. The setting is sent to the container, which ignores `updatedInput` unless it is enabled |
 | Sub-agents | Messages from sub-agents carry `threadId` (the id of the Task tool call that started them) |
-| Event mapping | Driven by a coverage table over every SDK message type, content block, and delta; see [Event coverage](event-coverage.md) |
+| Event mapping | Every SDK message becomes unified events or `provider.custom`; see [Event mapping](#event-mapping) |
+
+## Event mapping
+
+With AgentCore, the Agent SDK runs inside the container, and the
+[driver](#what-the-claude-agent-sdk-driver-does) converts its messages into
+[unified events](event-model.md#event-list-and-sources) **before** they leave the container. Your
+backend only ever receives unified events. The tables below match the coverage tables in
+`packages/agentcore-runtime/src/claude-agent-sdk/coverage.ts`. An SDK upgrade that adds a message
+type, content block, or delta fails the build until it is added there (see
+[Event coverage](event-coverage.md)). A message type the installed SDK doesn't know becomes
+`provider.custom`.
+
+**SDK messages**
+
+| SDK message (`type` or `type/subtype`) | Our event | Notes |
+| --- | --- | --- |
+| **Conversation** | | |
+| `assistant` | one event per content block (table below) |  |
+| `user` | `tool.result` for each `tool_result` block | other user content is the SDK echoing our prompt, which the runtime already recorded as `user.message` |
+| `stream_event` | `message.start`, `text.delta`, `thinking.delta` | live; see stream events below |
+| `result/success` | `session.status: idle` + `turn.completed` | usage and `costUsd` from the result |
+| `result/error_during_execution` | `session.error` + `turn.completed` |  |
+| `result/error_max_turns` | `session.error` + `turn.completed` |  |
+| `result/error_max_budget_usd` | `session.error` + `turn.completed` |  |
+| `result/error_max_structured_output_retries` | `session.error` + `turn.completed` |  |
+| **Session lifecycle and context** | | |
+| `system/init` | `provider.custom` |  |
+| `system/status` | `provider.custom` |  |
+| `system/compact_boundary` | `provider.custom` |  |
+| `conversation_reset` | `provider.custom` |  |
+| `system/worker_shutting_down` | `provider.custom` |  |
+| `system/session_state_changed` | – (ignored) | the runtime derives `session.status` itself |
+| **Reliability** | | |
+| `system/api_retry` | `provider.custom` |  |
+| `rate_limit_event` | `provider.custom` |  |
+| `system/model_refusal_fallback` | `provider.custom` |  |
+| `system/model_refusal_no_fallback` | `provider.custom` |  |
+| `system/mirror_error` | `provider.custom` |  |
+| **Permissions and tools** | | |
+| `system/permission_denied` | `provider.custom` |  |
+| `tool_use_summary` | `provider.custom` |  |
+| `tool_progress` | – (ignored) | periodic heartbeat while a tool runs |
+| `system/elicitation_complete` | `provider.custom` |  |
+| **Sub-agents and background tasks** | | |
+| `system/task_started` | `provider.custom` |  |
+| `system/task_updated` | `provider.custom` |  |
+| `system/task_progress` | `provider.custom` |  |
+| `system/task_notification` | `provider.custom` |  |
+| `system/background_tasks_changed` | `provider.custom` |  |
+| **Informational** | | |
+| `system/notification` | `provider.custom` |  |
+| `system/informational` | `provider.custom` |  |
+| `system/memory_recall` | `provider.custom` |  |
+| `system/files_persisted` | `provider.custom` |  |
+| `system/local_command_output` | `provider.custom` |  |
+| **Internal plumbing** | | |
+| `system/hook_started` | – (ignored) |  |
+| `system/hook_progress` | – (ignored) |  |
+| `system/hook_response` | – (ignored) |  |
+| `system/control_request_progress` | – (ignored) |  |
+| `system/plugin_install` | – (ignored) |  |
+| `system/commands_changed` | – (ignored) |  |
+| `system/thinking_tokens` | – (ignored) |  |
+| `auth_status` | – (ignored) |  |
+| `prompt_suggestion` | – (ignored) |  |
+
+`ignored` messages are dropped as noise. Set `forwardAllMessages: true` on the driver to forward
+them as `provider.custom` too.
+
+**Content blocks of `assistant` messages.** Each block becomes its own event, with message id
+`<API message id>:<block index>`. Messages from a sub-agent get `threadId` set to the
+`parent_tool_use_id`.
+
+| Content block | Our event |
+| --- | --- |
+| `tool_use` | `tool.call`: `kind: custom` for your runtime tools (`mcp__runtime__<name>`, reported with the plain name), `kind: mcp` for other `mcp__…` tools, `kind: builtin` otherwise |
+| `server_tool_use` | `tool.call` (`kind: builtin`) |
+| `mcp_tool_use` | `tool.call` (`kind: mcp`) |
+| `text` | `message.completed` with the block unchanged |
+| `thinking` | `message.completed` with the block unchanged |
+| `redacted_thinking` | `message.completed` with the block unchanged |
+| `compaction` | `message.completed` with the block unchanged |
+| `fallback` | `message.completed` with the block unchanged |
+| `container_upload` | `message.completed` with the block unchanged |
+| `mcp_tool_result` | `message.completed` with the block unchanged |
+| `mcp_tool_listing` | `message.completed` with the block unchanged |
+| `web_search_tool_result` | `message.completed` with the block unchanged |
+| `web_fetch_tool_result` | `message.completed` with the block unchanged |
+| `advisor_tool_result` | `message.completed` with the block unchanged |
+| `code_execution_tool_result` | `message.completed` with the block unchanged |
+| `bash_code_execution_tool_result` | `message.completed` with the block unchanged |
+| `text_editor_code_execution_tool_result` | `message.completed` with the block unchanged |
+| `tool_search_tool_result` | `message.completed` with the block unchanged |
+| anything newer | `message.completed` with the block unchanged |
+
+**Stream events** (inside `stream_event`, live only):
+
+| Stream event / delta | Our event |
+| --- | --- |
+| `message_start` | none (remembers the message id for the deltas) |
+| `content_block_start` (text or thinking) | `message.start` |
+| `content_block_delta` `text_delta` | `text.delta` |
+| `content_block_delta` `thinking_delta` | `thinking.delta` |
+| `input_json_delta`, `citations_delta`, `signature_delta`, `compaction_delta` | none: the final content arrives in the `assistant` message |
+| `content_block_stop`, `message_delta`, `message_stop` | none |
+
+**Stop reasons** (`result` subtype):
+
+| `result` subtype | `turn.completed.stopReason` |
+| --- | --- |
+| `success` | `end_turn` |
+| `error_during_execution` | `error` |
+| `error_max_turns` | `max_turns` |
+| `error_max_budget_usd` | `budget` |
+| `error_max_structured_output_retries` | `error` |
+
+After an interrupt the stop reason is always `interrupted`.
+
+**Outside SDK messages.** Two driver callbacks also produce events: `canUseTool` waiting for a
+decision produces `session.status: requires_action` and an approval request, and an exception from
+the SDK produces `session.error`.
+
+### What the container sends to your backend
+
+| Protocol message | What the runtime does |
+| --- | --- |
+| `event` | Stores (or, for live deltas, forwards) the unified event as is |
+| `tool_request` | Runs your tool handler and replies with `tool_result`; the result is recorded as `tool.result` |
+| `approval_request` | Runs your approval policy (`approval.requested` when it says `ask`) and replies with `approval_decision` |
+| `store_request` | Reads or writes the SDK transcript in your `Store` |
+| `ack`, `error` | Completes or fails the pending command |
 
 ## Local development
 

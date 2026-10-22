@@ -76,8 +76,9 @@ API or Console.
 - **Interrupts:** `user.interrupt`; the runtime reports the turn as `interrupted`.
 - **Deleted sessions:** a 404 from the API marks the session `terminated`.
 
-Event mapping, API-call costs, and open design questions are described in
-[docs/managed-agents.md](../../docs/managed-agents.md).
+Every Managed Agents event type and the unified event it becomes is listed in
+[Managed Agents: event mapping](../../docs/managed-agents.md#event-mapping). API-call costs and
+open design questions are in the same guide.
 
 ## Capabilities
 

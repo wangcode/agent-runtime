@@ -108,32 +108,88 @@ Echoes of these `user.*` and `system.message` events from the stream are ignored
 
 ## Event mapping
 
-Every Managed Agents event type is listed in the coverage table (`src/coverage.ts`), and an SDK
-upgrade that adds a type fails the build until it is handled; see [Event coverage](event-coverage.md).
-Notable details:
+Every Managed Agents event type, and the [unified event](event-model.md#event-list-and-sources) it
+becomes. The list matches the coverage table in `packages/provider-managed-agents/src/coverage.ts`;
+an SDK upgrade that adds a type fails the build until it is added there (see
+[Event coverage](event-coverage.md)). A type the installed SDK doesn't know yet becomes
+`provider.custom`.
 
-- **Deltas** are always requested (`event_deltas: ['agent.message', 'agent.thinking']`).
-  `deltas: false` only stops forwarding them as live events.
-- **Thinking.** `agent.thinking` events carry no text. The provider collects the thinking deltas
-  and puts them into the `message.completed` thinking block, whether or not deltas are forwarded.
-- **Permissions.** `agent.tool_use` and `agent.mcp_tool_use` with
-  `evaluated_permission: "ask"` become approval requests. Calls evaluated as `allow` or `deny` are
-  not shown to your policy.
-- **Blocks.** An `agent.message` with several content blocks becomes one `message.completed` per
-  block, with ids `<event id>:<block index>` shared with the deltas.
-- **Usage.** `span.model_request_end` token counts and `session.usage` cost are summed into
-  `turn.completed.usage`.
-- **Stop reasons.** `requires_action` becomes `session.status: requires_action`. Other idle stop
-  reasons end the turn: the runtime emits `session.status: idle` followed by `turn.completed`.
-  After an interrupt the stop reason is always `interrupted` (Managed Agents itself reports
-  `end_turn`).
+| Managed Agents event | Our event | Notes |
+| --- | --- | --- |
+| **Stream previews** | | |
+| `event_start` | `message.start` | live; id `<event id>:<block index>` |
+| `event_delta` | `text.delta` / `thinking.delta` | live; `agent.message` deltas become text, `agent.thinking` deltas become thinking |
+| **Agent events** | | |
+| `agent.message` | `message.completed`, one per content block | `text` and `redacted` blocks; id `<event id>:<block index>`, shared with the deltas |
+| `agent.thinking` | `message.completed` with a `thinking` block | the event has no text; it is assembled from thinking deltas |
+| `agent.tool_use` | `tool.call` (`kind: builtin`) | plus an approval request when `evaluated_permission` is `ask` |
+| `agent.mcp_tool_use` | `tool.call` (`kind: mcp`) | plus an approval request when `evaluated_permission` is `ask` |
+| `agent.custom_tool_use` | `tool.call` (`kind: custom`) | plus a call to your tool handler; its result becomes `tool.result` |
+| `agent.tool_result` | `tool.result` |  |
+| `agent.mcp_tool_result` | `tool.result` |  |
+| `agent.thread_context_compacted` | `provider.custom` |  |
+| `agent.thread_message_received` | `provider.custom` |  |
+| `agent.thread_message_sent` | `provider.custom` |  |
+| **Session status and lifecycle** | | |
+| `session.status_running` | `session.status: running` | usually a duplicate: the runtime already reported `running` on `send()` |
+| `session.status_idle` | `session.status: idle` + `turn.completed` | stop reason mapped below; `requires_action` becomes `session.status: requires_action` and does not end the turn |
+| `session.status_terminated` | `session.status: terminated` |  |
+| `session.deleted` | `session.status: terminated` |  |
+| `session.status_rescheduled` | `provider.custom` |  |
+| `session.error` | `session.error` |  |
+| `session.updated` | `provider.custom` |  |
+| `session.usage` | `turn.completed.usage.costUsd` | cumulative cost; the increase since the previous one is added to the current turn |
+| **Multi-agent threads** | | |
+| `session.thread_created` | `provider.custom` |  |
+| `session.thread_status_running` | `provider.custom` |  |
+| `session.thread_status_idle` | `provider.custom` |  |
+| `session.thread_status_rescheduled` | `provider.custom` |  |
+| `session.thread_status_terminated` | `provider.custom` |  |
+| **Spans** | | |
+| `span.model_request_start` | `provider.custom` |  |
+| `span.model_request_end` | `turn.completed.usage` token counts | summed per turn |
+| `span.outcome_evaluation_start` | `provider.custom` |  |
+| `span.outcome_evaluation_ongoing` | `provider.custom` |  |
+| `span.outcome_evaluation_end` | `provider.custom` |  |
+| **Workflows** | | |
+| `workflow_run.created` | `provider.custom` |  |
+| `workflow_run.status_running` | `provider.custom` |  |
+| `workflow_run.status_idle` | `provider.custom` |  |
+| `workflow_run.status_ended` | `provider.custom` |  |
+| `workflow_run.error` | `provider.custom` |  |
+| `workflow_run.phase_started` | `provider.custom` |  |
+| `workflow_run.phase_ended` | `provider.custom` |  |
+| **User events** (mostly echoes of what the runtime sent) | | |
+| `user.message` | – (ignored) | the runtime records `user.message` itself on `send()` |
+| `system.message` | – (ignored) | recorded as `user.message.system` |
+| `user.interrupt` | – (ignored) | the runtime reports the turn as `interrupted` |
+| `user.custom_tool_result` | – (ignored) | the runtime records `tool.result` itself |
+| `user.tool_confirmation` | – (ignored) | the runtime records `approval.resolved` itself |
+| `user.tool_result` | – (ignored) | self-hosted environments only |
+| `user.define_outcome` | `provider.custom` | not sent by the runtime, so not an echo |
 
-  | Managed Agents stop reason | `turn.completed.stopReason` |
-  | --- | --- |
-  | `end_turn` | `end_turn` |
-  | `retries_exhausted` | `error` |
-  | `budget_reached` | `budget` |
-  | `refusal` | `refusal` |
+**Stop reasons** (`session.status_idle.stop_reason.type`):
+
+| Managed Agents | `turn.completed.stopReason` |
+| --- | --- |
+| `end_turn` | `end_turn` (`interrupted` if you interrupted the turn; Managed Agents itself reports `end_turn`) |
+| `requires_action` | none: the turn stays open and `session.status` becomes `requires_action` |
+| `retries_exhausted` | `error` |
+| `budget_reached` | `budget` |
+| `refusal` | `refusal` |
+| anything newer | passed through as a string |
+
+**Permissions** (`evaluated_permission` on `agent.tool_use` and `agent.mcp_tool_use`): only `ask`
+creates an approval request for your policy. `allow` and `deny` were already decided by the
+service, so the call appears only as `tool.call`.
+
+**Notes**
+
+- **Deltas** are always requested (`event_deltas: ['agent.message', 'agent.thinking']`), because
+  thinking text only exists there. `deltas: false` only stops forwarding them as live events.
+- **Messages from outside the runtime.** User events are ignored as echoes, so a message sent to
+  the session another way (for example from the Anthropic Console) doesn't appear in the
+  runtime's history.
 
 ## Capabilities
 
