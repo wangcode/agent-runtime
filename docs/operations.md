@@ -28,8 +28,8 @@ All runtime options are passed to `createRuntime()`.
 | `logger` | silent | Where log lines go | Always set in production |
 
 Provider options are listed in each provider's README:
-[Managed Agents](../packages/provider-managed-agents/README.md#provider-options),
-[AgentCore](../packages/provider-agentcore/README.md#options).
+[Managed Agents](../packages/providers/managed-agents/README.md#provider-options),
+[AgentCore](../packages/providers/agentcore/README.md#options).
 
 ## Logging
 

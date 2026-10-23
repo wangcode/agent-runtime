@@ -10,8 +10,9 @@
   "dependencies": {
     "@agent-runtime/agentcore-runtime": "workspace:*",
     "@agent-runtime/core": "workspace:*",
-    "@agent-runtime/provider-agentcore": "workspace:*",
-    "@agent-runtime/provider-managed-agents": "workspace:*",
+    "@agent-runtime/providers-agentcore": "workspace:*",
+    "@agent-runtime/providers-managed-agents": "workspace:*",
+    "@agent-runtime/stores-memory": "workspace:*",
     "@anthropic-ai/sdk": "^0.137.0",
     "ws": "^8.18.0"
   },

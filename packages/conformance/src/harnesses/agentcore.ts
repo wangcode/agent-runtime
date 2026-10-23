@@ -2,7 +2,7 @@ import WebSocket from 'ws'
 import { AsyncQueue, deferred } from '@agent-runtime/core'
 import { type AgentCoreServer, startAgentCoreServer } from '@agent-runtime/agentcore-runtime'
 import { ClaudeAgentSdkDriver, type ClaudeAgentSdkModule } from '@agent-runtime/agentcore-runtime/claude-agent-sdk'
-import { AgentCoreProvider } from '@agent-runtime/provider-agentcore'
+import { AgentCoreProvider } from '@agent-runtime/providers-agentcore'
 import type { Harness, ScriptControl } from '../harness.js'
 
 type Msg = Record<string, unknown>

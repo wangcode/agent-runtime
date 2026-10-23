@@ -12,14 +12,15 @@ Requirements: Node.js 20 or newer.
 ### Install
 
 ```bash
-pnpm add @agent-runtime/core express
+pnpm add @agent-runtime/core @agent-runtime/stores-memory express
 ```
 
 ### `server.ts`
 
 ```ts
 import express from 'express'
-import { createRuntime, MemoryBus, MemoryStore, toSSE } from '@agent-runtime/core'
+import { createRuntime, toSSE } from '@agent-runtime/core'
+import { MemoryBus, MemoryStore } from '@agent-runtime/stores-memory'
 import { FakeProvider } from '@agent-runtime/core/testing'
 
 // A simulated provider: replies "You said: …" to every message.
@@ -124,9 +125,9 @@ A fuller version of this server, with approvals, interrupts and a slower simulat
 ### Install
 
 ```bash
-pnpm add @agent-runtime/store-postgres pg
-pnpm add @agent-runtime/provider-managed-agents @anthropic-ai/sdk   # Claude Managed Agents
-pnpm add @agent-runtime/provider-agentcore                          # Claude Agent SDK on AgentCore
+pnpm add @agent-runtime/stores-postgres pg
+pnpm add @agent-runtime/providers-managed-agents @anthropic-ai/sdk   # Claude Managed Agents
+pnpm add @agent-runtime/providers-agentcore                          # Claude Agent SDK on AgentCore
 ```
 
 ### Replace the runtime
@@ -135,9 +136,9 @@ pnpm add @agent-runtime/provider-agentcore                          # Claude Age
 import pg from 'pg'
 import Anthropic from '@anthropic-ai/sdk'
 import { createRuntime } from '@agent-runtime/core'
-import { PgBus, PgStore, migrate } from '@agent-runtime/store-postgres'
-import { managedAgents } from '@agent-runtime/provider-managed-agents'
-import { agentCore } from '@agent-runtime/provider-agentcore'
+import { PgBus, PgStore, migrate } from '@agent-runtime/stores-postgres'
+import { managedAgents } from '@agent-runtime/providers-managed-agents'
+import { agentCore } from '@agent-runtime/providers-agentcore'
 
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL })
 await migrate(pool) // creates or upgrades the tables; safe on every boot and on many instances at once

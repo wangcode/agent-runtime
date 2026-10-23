@@ -8,9 +8,10 @@
   },
   "dependencies": {
     "@agent-runtime/core": "workspace:*",
-    "@agent-runtime/provider-agentcore": "workspace:*",
-    "@agent-runtime/provider-managed-agents": "workspace:*",
-    "@agent-runtime/store-postgres": "workspace:*",
+    "@agent-runtime/providers-agentcore": "workspace:*",
+    "@agent-runtime/providers-managed-agents": "workspace:*",
+    "@agent-runtime/stores-memory": "workspace:*",
+    "@agent-runtime/stores-postgres": "workspace:*",
     "@anthropic-ai/sdk": "^0.137.0",
     "express": "^5.1.0",
     "pg": "^8.13.0",

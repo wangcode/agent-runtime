@@ -1,4 +1,5 @@
-import { MemoryBus, MemoryStore, type ProviderAdapter, type Runtime, type RuntimeEvent, createRuntime } from '@agent-runtime/core'
+import { type ProviderAdapter, type Runtime, type RuntimeEvent, createRuntime } from '@agent-runtime/core'
+import { MemoryBus, MemoryStore } from '@agent-runtime/stores-memory'
 import { lookupResult, type NormalizedEvent, type Scenario, type AgentStep } from './scenarios.js'
 import { normalize } from './normalize.js'
 

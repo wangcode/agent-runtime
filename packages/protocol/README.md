@@ -1,6 +1,6 @@
 # @agent-runtime/protocol
 
-The WebSocket protocol between [`@agent-runtime/provider-agentcore`](../provider-agentcore/README.md)
+The WebSocket protocol between [`@agent-runtime/providers-agentcore`](../providers/agentcore/README.md)
 (the **client**, in your backend) and [`@agent-runtime/agentcore-runtime`](../agentcore-runtime/README.md)
 (the **container**). It contains only types and small helpers. You need it directly only if you
 implement one side yourself.

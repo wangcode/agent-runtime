@@ -1,5 +1,4 @@
-import type { PersistedEvent } from './events.js'
-import type { ActionRecord, Bus, CommandRecord, NewEvent, SessionRecord, Store, TranscriptKey } from './store.js'
+import type { ActionRecord, Bus, CommandRecord, NewEvent, PersistedEvent, SessionRecord, Store, TranscriptKey } from '@agent-runtime/core'
 
 const clone = <T>(value: T): T => (value === undefined ? value : structuredClone(value))
 

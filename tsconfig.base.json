@@ -32,14 +32,17 @@
       "@agent-runtime/protocol": [
         "packages/protocol/src/index.ts"
       ],
-      "@agent-runtime/store-postgres": [
-        "packages/store-postgres/src/index.ts"
+      "@agent-runtime/stores-memory": [
+        "packages/stores/memory/src/index.ts"
       ],
-      "@agent-runtime/provider-managed-agents": [
-        "packages/provider-managed-agents/src/index.ts"
+      "@agent-runtime/stores-postgres": [
+        "packages/stores/postgres/src/index.ts"
       ],
-      "@agent-runtime/provider-agentcore": [
-        "packages/provider-agentcore/src/index.ts"
+      "@agent-runtime/providers-managed-agents": [
+        "packages/providers/managed-agents/src/index.ts"
+      ],
+      "@agent-runtime/providers-agentcore": [
+        "packages/providers/agentcore/src/index.ts"
       ],
       "@agent-runtime/agentcore-runtime": [
         "packages/agentcore-runtime/src/index.ts"

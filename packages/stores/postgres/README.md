@@ -1,4 +1,4 @@
-# @agent-runtime/store-postgres
+# @agent-runtime/stores-postgres
 
 Postgres storage and cross-instance messaging for `agent-runtime`. This is what lets you run
 several instances of your backend behind a load balancer.
@@ -12,7 +12,7 @@ several instances of your backend behind a load balancer.
 ## Install
 
 ```bash
-pnpm add @agent-runtime/store-postgres pg
+pnpm add @agent-runtime/stores-postgres pg
 ```
 
 ## Usage
@@ -20,7 +20,7 @@ pnpm add @agent-runtime/store-postgres pg
 ```ts
 import pg from 'pg'
 import { createRuntime } from '@agent-runtime/core'
-import { PgBus, PgStore, migrate } from '@agent-runtime/store-postgres'
+import { PgBus, PgStore, migrate } from '@agent-runtime/stores-postgres'
 
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 20 })
 await migrate(pool) // idempotent; safe for many instances to run at once
@@ -111,16 +111,16 @@ runtime's polling fallback, so nothing is lost, only delayed.
 
 ## Testing
 
-The test suite runs the shared store contract against `MemoryStore` always, and against `PgStore`
-when `AGENT_RUNTIME_PG_URL` is set. Each run uses a throwaway schema.
+The test suite runs the shared store contract (`storeContract` from `@agent-runtime/core/testing`)
+against `PgStore` when `AGENT_RUNTIME_PG_URL` is set. Each run uses a throwaway schema.
 
 ```bash
 AGENT_RUNTIME_PG_URL=postgres://postgres@localhost:5432/postgres pnpm test
 ```
 
-Inspection queries and retention SQL: [Operations](../../docs/operations.md#inspecting-state-in-postgres).
+Inspection queries and retention SQL: [Operations](../../../docs/operations.md#inspecting-state-in-postgres).
 
 ## Further reading
 
-- [Scaling and failover](../../docs/scaling-and-failover.md)
-- [Architecture](../../docs/architecture.md)
+- [Scaling and failover](../../../docs/scaling-and-failover.md)
+- [Architecture](../../../docs/architecture.md)

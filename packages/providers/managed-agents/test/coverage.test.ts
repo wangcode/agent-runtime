@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { type Handling, MA_EVENT_COVERAGE, type MAEventType, mapEvent, newMappingState } from '@agent-runtime/provider-managed-agents'
+import { type Handling, MA_EVENT_COVERAGE, type MAEventType, mapEvent, newMappingState } from '@agent-runtime/providers-managed-agents'
 
 type MappedType = { [K in MAEventType]: (typeof MA_EVENT_COVERAGE)[K] extends 'mapped' ? K : never }[MAEventType]
 

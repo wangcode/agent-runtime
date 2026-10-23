@@ -6,7 +6,7 @@ provides **both ends** of that setup:
 
 | Side | Package | Runs |
 | --- | --- | --- |
-| Caller | [`@agent-runtime/provider-agentcore`](../packages/provider-agentcore/README.md) | In your backend, as a runtime provider |
+| Caller | [`@agent-runtime/providers-agentcore`](../packages/providers/agentcore/README.md) | In your backend, as a runtime provider |
 | Container | [`@agent-runtime/agentcore-runtime`](../packages/agentcore-runtime/README.md) | Inside the AgentCore container, hosting the Claude Agent SDK |
 
 They talk over a WebSocket using [`@agent-runtime/protocol`](../packages/protocol/README.md).
@@ -39,7 +39,7 @@ container half answers those questions in a way the caller half understands:
 ## Caller side
 
 ```ts
-import { agentCore } from '@agent-runtime/provider-agentcore'
+import { agentCore } from '@agent-runtime/providers-agentcore'
 
 const runtime = createRuntime({
   // …

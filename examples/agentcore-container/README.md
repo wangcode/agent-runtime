@@ -2,7 +2,7 @@
 
 A container image that runs the Claude Agent SDK on Amazon Bedrock AgentCore Runtime, using
 [`@agent-runtime/agentcore-runtime`](../../packages/agentcore-runtime/README.md). Your backend
-connects to it with [`@agent-runtime/provider-agentcore`](../../packages/provider-agentcore/README.md).
+connects to it with [`@agent-runtime/providers-agentcore`](../../packages/providers/agentcore/README.md).
 
 ## Files
 

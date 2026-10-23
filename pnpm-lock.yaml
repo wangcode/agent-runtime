@@ -42,15 +42,18 @@ importers:
       '@agent-runtime/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@agent-runtime/provider-agentcore':
+      '@agent-runtime/providers-agentcore':
         specifier: workspace:*
-        version: link:../../packages/provider-agentcore
-      '@agent-runtime/provider-managed-agents':
+        version: link:../../packages/providers/agentcore
+      '@agent-runtime/providers-managed-agents':
         specifier: workspace:*
-        version: link:../../packages/provider-managed-agents
-      '@agent-runtime/store-postgres':
+        version: link:../../packages/providers/managed-agents
+      '@agent-runtime/stores-memory':
         specifier: workspace:*
-        version: link:../../packages/store-postgres
+        version: link:../../packages/stores/memory
+      '@agent-runtime/stores-postgres':
+        specifier: workspace:*
+        version: link:../../packages/stores/postgres
       '@anthropic-ai/sdk':
         specifier: ^0.137.0
         version: 0.137.0(zod@4.6.7)
@@ -85,6 +88,9 @@ importers:
       '@agent-runtime/nestjs':
         specifier: workspace:*
         version: link:../../packages/nestjs
+      '@agent-runtime/stores-memory':
+        specifier: workspace:*
+        version: link:../../packages/stores/memory
       '@nestjs/common':
         specifier: ^11.1.0
         version: 11.2.7(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -135,12 +141,15 @@ importers:
       '@agent-runtime/core':
         specifier: workspace:*
         version: link:../core
-      '@agent-runtime/provider-agentcore':
+      '@agent-runtime/providers-agentcore':
         specifier: workspace:*
-        version: link:../provider-agentcore
-      '@agent-runtime/provider-managed-agents':
+        version: link:../providers/agentcore
+      '@agent-runtime/providers-managed-agents':
         specifier: workspace:*
-        version: link:../provider-managed-agents
+        version: link:../providers/managed-agents
+      '@agent-runtime/stores-memory':
+        specifier: workspace:*
+        version: link:../stores/memory
       '@anthropic-ai/sdk':
         specifier: ^0.137.0
         version: 0.137.0(zod@4.6.7)
@@ -164,6 +173,9 @@ importers:
         specifier: workspace:*
         version: link:../core
     devDependencies:
+      '@agent-runtime/stores-memory':
+        specifier: workspace:*
+        version: link:../stores/memory
       '@nestjs/common':
         specifier: ^11.1.0
         version: 11.2.7(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -186,14 +198,14 @@ importers:
         specifier: workspace:*
         version: link:../core
 
-  packages/provider-agentcore:
+  packages/providers/agentcore:
     dependencies:
       '@agent-runtime/core':
         specifier: workspace:*
-        version: link:../core
+        version: link:../../core
       '@agent-runtime/protocol':
         specifier: workspace:*
-        version: link:../protocol
+        version: link:../../protocol
       '@aws-crypto/sha256-js':
         specifier: ^5.2.0
         version: 5.2.0
@@ -213,29 +225,44 @@ importers:
         specifier: ^8.18.0
         version: 8.22.0
     devDependencies:
+      '@agent-runtime/stores-memory':
+        specifier: workspace:*
+        version: link:../../stores/memory
       '@types/ws':
         specifier: ^8.5.13
         version: 8.18.2
 
-  packages/provider-managed-agents:
+  packages/providers/managed-agents:
     dependencies:
       '@agent-runtime/core':
         specifier: workspace:*
-        version: link:../core
+        version: link:../../core
     devDependencies:
+      '@agent-runtime/stores-memory':
+        specifier: workspace:*
+        version: link:../../stores/memory
       '@anthropic-ai/sdk':
         specifier: ^0.137.0
         version: 0.137.0(zod@4.6.7)
 
-  packages/store-postgres:
+  packages/stores/memory:
     dependencies:
       '@agent-runtime/core':
         specifier: workspace:*
-        version: link:../core
+        version: link:../../core
+
+  packages/stores/postgres:
+    dependencies:
+      '@agent-runtime/core':
+        specifier: workspace:*
+        version: link:../../core
       pg:
         specifier: ^8.13.0
         version: 8.23.1
     devDependencies:
+      '@agent-runtime/stores-memory':
+        specifier: workspace:*
+        version: link:../memory
       '@types/pg':
         specifier: ^8.11.10
         version: 8.23.1

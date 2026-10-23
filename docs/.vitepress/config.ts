@@ -1,6 +1,17 @@
 import { defineConfig } from 'vitepress'
 
-const packages = ['core', 'store-postgres', 'provider-managed-agents', 'provider-agentcore', 'agentcore-runtime', 'protocol', 'nestjs', 'conformance']
+/** Folder under packages/ → npm name. */
+const packages: Array<[dir: string, name: string]> = [
+  ['core', 'core'],
+  ['stores/memory', 'stores-memory'],
+  ['stores/postgres', 'stores-postgres'],
+  ['providers/managed-agents', 'providers-managed-agents'],
+  ['providers/agentcore', 'providers-agentcore'],
+  ['agentcore-runtime', 'agentcore-runtime'],
+  ['protocol', 'protocol'],
+  ['nestjs', 'nestjs'],
+  ['conformance', 'conformance'],
+]
 const examples = ['express-sse', 'nestjs', 'agentcore-container']
 
 /**
@@ -15,6 +26,7 @@ export default defineConfig({
   rewrites: {
     'README.md': 'index.md',
     'packages/:pkg/README.md': 'packages/:pkg/index.md',
+    'packages/:group/:pkg/README.md': 'packages/:group/:pkg/index.md',
     'examples/:ex/README.md': 'examples/:ex/index.md',
   },
   cleanUrls: true,
@@ -83,7 +95,7 @@ export default defineConfig({
           { text: 'Writing a provider or driver', link: '/docs/extending' },
         ],
       },
-      { text: 'Packages', collapsed: false, items: packages.map((p) => ({ text: `@agent-runtime/${p}`, link: `/packages/${p}/` })) },
+      { text: 'Packages', collapsed: false, items: packages.map(([dir, name]) => ({ text: `@agent-runtime/${name}`, link: `/packages/${dir}/` })) },
       { text: 'Examples', collapsed: false, items: examples.map((e) => ({ text: e, link: `/examples/${e}/` })) },
     ],
   },

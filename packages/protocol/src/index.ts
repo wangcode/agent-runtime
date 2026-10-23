@@ -1,7 +1,7 @@
 import type { ApprovalDecision, ContentBlock, ProviderEvent, ToolDefinition, ToolResult, TranscriptKey } from '@agent-runtime/core'
 
 /**
- * WebSocket protocol between the caller-side `provider-agentcore` adapter ("client") and the
+ * WebSocket protocol between the caller-side `providers-agentcore` adapter ("client") and the
  * container-side `agentcore-runtime` ("container"). JSON text frames; messages larger than
  * `MAX_FRAME_BYTES` are split into `chunk` frames.
  */

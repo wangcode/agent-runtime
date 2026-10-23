@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common'
-import { MemoryBus, MemoryStore } from '@agent-runtime/core'
+import { MemoryBus, MemoryStore } from '@agent-runtime/stores-memory'
 import { FakeProvider } from '@agent-runtime/core/testing'
 import { AgentRuntimeModule } from '@agent-runtime/nestjs'
 import { SessionsController } from './sessions.controller.js'

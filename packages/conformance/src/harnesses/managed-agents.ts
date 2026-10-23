@@ -1,6 +1,6 @@
 import type Anthropic from '@anthropic-ai/sdk'
 import { AsyncQueue, deferred } from '@agent-runtime/core'
-import { ManagedAgentsProvider } from '@agent-runtime/provider-managed-agents'
+import { ManagedAgentsProvider } from '@agent-runtime/providers-managed-agents'
 import type { Harness, ScriptControl } from '../harness.js'
 
 type Ev = Record<string, unknown>

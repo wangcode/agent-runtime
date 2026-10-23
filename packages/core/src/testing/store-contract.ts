@@ -1,9 +1,24 @@
-import { describe, expect, it } from 'vitest'
-import type { Store } from '@agent-runtime/core'
-import { newId } from '@agent-runtime/core'
+import type { Store } from '../store.js'
+import { newId } from '../util.js'
 
-/** Behaviour every Store implementation must share. */
-export function storeContract(name: string, makeStore: () => Store | Promise<Store>) {
+/** The parts of a test framework the contract needs; vitest's and jest's globals fit. */
+export interface TestApi {
+  describe: (name: string, fn: () => void) => unknown
+  it: (name: string, fn: () => Promise<void>) => unknown
+  // `any`: matcher objects differ between frameworks
+  expect: (actual: unknown) => any
+}
+
+/**
+ * Behaviour every `Store` implementation must share. Run it from your store's test suite:
+ *
+ * ```ts
+ * import { describe, expect, it } from 'vitest'
+ * storeContract('my store', () => new MyStore(), { describe, it, expect })
+ * ```
+ */
+export function storeContract(name: string, makeStore: () => Store | Promise<Store>, t: TestApi) {
+  const { describe, it, expect } = t
   const newSession = async (store: Store) => {
     const id = newId()
     await store.createSession({ id, provider: 'fake', providerSessionId: `p_${id}`, config: { a: 1 }, metadata: { user: 'u' }, status: 'idle', providerCursor: null })

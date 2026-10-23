@@ -46,8 +46,8 @@ Replace the in-memory setup with Postgres and a real provider using `forRootAsyn
 ```ts
 import pg from 'pg'
 import Anthropic from '@anthropic-ai/sdk'
-import { PgBus, PgStore, migrate } from '@agent-runtime/store-postgres'
-import { managedAgents } from '@agent-runtime/provider-managed-agents'
+import { PgBus, PgStore, migrate } from '@agent-runtime/stores-postgres'
+import { managedAgents } from '@agent-runtime/providers-managed-agents'
 
 @Module({
   providers: [

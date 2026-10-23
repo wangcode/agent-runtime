@@ -2,7 +2,7 @@
 
 [Claude Managed Agents](https://platform.claude.com/docs/en/managed-agents) runs the agent loop and
 its sandbox on Anthropic's infrastructure. Your backend creates sessions, sends events into them,
-and reads events back. `@agent-runtime/provider-managed-agents` connects that API to the runtime.
+and reads events back. `@agent-runtime/providers-managed-agents` connects that API to the runtime.
 
 ## Setup
 
@@ -35,7 +35,7 @@ const agent = await anthropic.beta.agents.create({
 
 ```ts
 import Anthropic from '@anthropic-ai/sdk'
-import { managedAgents, type ManagedAgentsSessionConfig } from '@agent-runtime/provider-managed-agents'
+import { managedAgents, type ManagedAgentsSessionConfig } from '@agent-runtime/providers-managed-agents'
 
 const runtime = createRuntime({
   // …
@@ -109,7 +109,7 @@ Echoes of these `user.*` and `system.message` events from the stream are ignored
 ## Event mapping
 
 Every Managed Agents event type, and the [unified event](event-model.md#event-list-and-sources) it
-becomes. The list matches the coverage table in `packages/provider-managed-agents/src/coverage.ts`;
+becomes. The list matches the coverage table in `packages/providers/managed-agents/src/coverage.ts`;
 an SDK upgrade that adds a type fails the build until it is added there (see
 [Event coverage](event-coverage.md)). A type the installed SDK doesn't know yet becomes
 `provider.custom`.

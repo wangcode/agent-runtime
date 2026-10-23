@@ -79,16 +79,23 @@ for await (const event of session.events({ after: lastEventId })) {
 
 ### Packages
 
-| Package | Description |
-| --- | --- |
-| [`@agent-runtime/core`](packages/core/README.md) | The runtime: event model, `Runtime`/`Session` API, orchestration, in-memory store, RxJS adapter, and test helpers |
-| [`@agent-runtime/store-postgres`](packages/store-postgres/README.md) | Postgres storage and cross-instance notifications via `LISTEN/NOTIFY` |
-| [`@agent-runtime/provider-managed-agents`](packages/provider-managed-agents/README.md) | Provider for Claude Managed Agents |
-| [`@agent-runtime/provider-agentcore`](packages/provider-agentcore/README.md) | Provider for agents running on Bedrock AgentCore (caller side) |
-| [`@agent-runtime/agentcore-runtime`](packages/agentcore-runtime/README.md) | Server that runs inside the AgentCore container, plus the Claude Agent SDK driver |
-| [`@agent-runtime/protocol`](packages/protocol/README.md) | WebSocket protocol shared by the two AgentCore packages |
-| [`@agent-runtime/nestjs`](packages/nestjs/README.md) | NestJS module, `@Sse()` helpers with resume, and an exception filter |
-| [`@agent-runtime/conformance`](packages/conformance/README.md) | *(private)* Scenarios every provider must pass to behave identically |
+| Package | Folder | Description |
+| --- | --- | --- |
+| **Core** | | |
+| [`@agent-runtime/core`](packages/core/README.md) | `packages/core` | The runtime: event model, `Runtime`/`Session` API, orchestration, `Store`/`Bus` interfaces, RxJS adapter, and test helpers |
+| **Stores** | | |
+| [`@agent-runtime/stores-memory`](packages/stores/memory/README.md) | `packages/stores/memory` | In-memory store and bus, for development, tests, and single-instance deployments |
+| [`@agent-runtime/stores-postgres`](packages/stores/postgres/README.md) | `packages/stores/postgres` | Postgres storage and cross-instance notifications via `LISTEN/NOTIFY` |
+| **Providers** | | |
+| [`@agent-runtime/providers-managed-agents`](packages/providers/managed-agents/README.md) | `packages/providers/managed-agents` | Provider for Claude Managed Agents |
+| [`@agent-runtime/providers-agentcore`](packages/providers/agentcore/README.md) | `packages/providers/agentcore` | Provider for agents running on Bedrock AgentCore (caller side) |
+| **AgentCore container** | | |
+| [`@agent-runtime/agentcore-runtime`](packages/agentcore-runtime/README.md) | `packages/agentcore-runtime` | Server that runs inside the AgentCore container, plus the Claude Agent SDK driver |
+| [`@agent-runtime/protocol`](packages/protocol/README.md) | `packages/protocol` | WebSocket protocol between `providers-agentcore` and `agentcore-runtime` |
+| **Integrations** | | |
+| [`@agent-runtime/nestjs`](packages/nestjs/README.md) | `packages/nestjs` | NestJS module, `@Sse()` helpers with resume, and an exception filter |
+| **Internal** | | |
+| [`@agent-runtime/conformance`](packages/conformance/README.md) | `packages/conformance` | *(private)* Scenarios every provider must pass to behave identically |
 
 ### Examples
 

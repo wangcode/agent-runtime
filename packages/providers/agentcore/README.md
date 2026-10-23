@@ -1,20 +1,20 @@
-# @agent-runtime/provider-agentcore
+# @agent-runtime/providers-agentcore
 
 The caller-side half of the Bedrock AgentCore integration. Your backend uses it as a runtime
 provider. It connects over a WebSocket to a container running
-[`@agent-runtime/agentcore-runtime`](../agentcore-runtime/README.md).
+[`@agent-runtime/agentcore-runtime`](../../agentcore-runtime/README.md).
 
 ## Install
 
 ```bash
-pnpm add @agent-runtime/provider-agentcore
+pnpm add @agent-runtime/providers-agentcore
 ```
 
 ## Usage
 
 ```ts
 import { createRuntime } from '@agent-runtime/core'
-import { agentCore } from '@agent-runtime/provider-agentcore'
+import { agentCore } from '@agent-runtime/providers-agentcore'
 
 const runtime = createRuntime({
   store,
@@ -80,7 +80,7 @@ runtime.
 
 ## Capabilities
 
-`approvalUpdatedInput`: the value of `allowUpdatedInput`. `thinkingContent`: `full`. `turnCost`: `true`. `systemMessages`: `emulated` (the container driver decides how; the Claude Agent SDK driver adds a `<system-reminder>` block). See the [behaviour spec](../../docs/behavior-spec.md#capabilities).
+`approvalUpdatedInput`: the value of `allowUpdatedInput`. `thinkingContent`: `full`. `turnCost`: `true`. `systemMessages`: `emulated` (the container driver decides how; the Claude Agent SDK driver adds a `<system-reminder>` block). See the [behaviour spec](../../../docs/behavior-spec.md#capabilities).
 
 ## Exports
 
@@ -93,6 +93,6 @@ runtime.
 
 ## Further reading
 
-- [Bedrock AgentCore guide](../../docs/agentcore.md)
-- [`@agent-runtime/agentcore-runtime`](../agentcore-runtime/README.md), the container side
-- [`@agent-runtime/protocol`](../protocol/README.md), the wire protocol
+- [Bedrock AgentCore guide](../../../docs/agentcore.md)
+- [`@agent-runtime/agentcore-runtime`](../../agentcore-runtime/README.md), the container side
+- [`@agent-runtime/protocol`](../../protocol/README.md), the wire protocol

@@ -1,11 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import pg from 'pg'
-import { MemoryStore, type Runtime, type RuntimeEvent, createRuntime } from '@agent-runtime/core'
-import { FakeProvider } from '@agent-runtime/core/testing'
-import { PgBus, PgStore, migrate } from '@agent-runtime/store-postgres'
-import { storeContract } from './store-contract.js'
-
-storeContract('memory', () => new MemoryStore())
+import { type Runtime, type RuntimeEvent, createRuntime } from '@agent-runtime/core'
+import { FakeProvider, storeContract } from '@agent-runtime/core/testing'
+import { MemoryStore } from '@agent-runtime/stores-memory'
+import { PgBus, PgStore, migrate } from '@agent-runtime/stores-postgres'
 
 /**
  * Postgres tests need a database: `AGENT_RUNTIME_PG_URL=postgres://postgres@127.0.0.1:54329/postgres`.
@@ -31,7 +29,7 @@ describe.skipIf(!url)('postgres', () => {
     await pool.end()
   })
 
-  storeContract('postgres', () => new PgStore({ pool, schema }))
+  storeContract('postgres', () => new PgStore({ pool, schema }), { describe, it, expect })
 
   const newBus = async () => {
     const bus = new PgBus({ pool, listenConfig: { connectionString: url }, channel: schema })

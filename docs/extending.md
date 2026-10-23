@@ -8,10 +8,10 @@ spec describes.
 
 | You want to… | Implement | Runs in | Examples |
 | --- | --- | --- | --- |
-| Connect to a service that hosts agents and has its own API | a **provider** (`ProviderAdapter`) | your backend | `provider-managed-agents` |
+| Connect to a service that hosts agents and has its own API | a **provider** (`ProviderAdapter`) | your backend | `providers-managed-agents` |
 | Run an agent framework inside an AgentCore container | a **driver** (`AgentDriver`) | the container | Claude Agent SDK driver |
 
-A driver needs no new provider: `provider-agentcore` talks to any driver.
+A driver needs no new provider: `providers-agentcore` talks to any driver.
 
 ---
 

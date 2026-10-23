@@ -60,7 +60,7 @@ it must be `mapped` to a tool or approval request. Otherwise sessions will wait 
 
 | Provider | File | Keyed by |
 | --- | --- | --- |
-| Claude Managed Agents | `packages/provider-managed-agents/src/coverage.ts` | `BetaManagedAgentsStreamSessionEvents['type']` and related SDK types |
+| Claude Managed Agents | `packages/providers/managed-agents/src/coverage.ts` | `BetaManagedAgentsStreamSessionEvents['type']` and related SDK types |
 | Claude Agent SDK | `packages/agentcore-runtime/src/claude-agent-sdk/coverage.ts` | `SDKMessage` `type` / `type/subtype`, assistant content block types, stream and delta types |
 | agent-runtime protocol (AgentCore) | `switch` statements with a `never` check | `ClientCommand`, `ContainerMessage` |
 
@@ -72,7 +72,7 @@ they leave the container. So:
 
 - **What the SDK can emit** is defined by the Agent SDK. The coverage table keeps us in sync with it.
 - **What reaches your backend** is defined by our driver: only unified events, sent over our own
-  protocol. The caller side (`provider-agentcore`) never sees raw SDK messages.
+  protocol. The caller side (`providers-agentcore`) never sees raw SDK messages.
 
 Because the container is deployed separately from your backend, the two can run different
 versions. A newer container may emit a unified event type an older backend doesn't know. It is

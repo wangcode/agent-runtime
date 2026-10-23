@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { firstValueFrom, filter, take, toArray } from 'rxjs'
-import { CapabilityError, MemoryBus, MemoryStore, Runtime, type RuntimeEvent, type RuntimeOptions, createRuntime } from '@agent-runtime/core'
+import { CapabilityError, Runtime, type RuntimeEvent, type RuntimeOptions, createRuntime } from '@agent-runtime/core'
+import { MemoryBus, MemoryStore } from '@agent-runtime/stores-memory'
 import { toObservable } from '@agent-runtime/core/rxjs'
 import { FakeProvider } from '@agent-runtime/core/testing'
 

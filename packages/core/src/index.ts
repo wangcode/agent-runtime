@@ -2,7 +2,6 @@ export * from './events.js'
 export * from './provider.js'
 export * from './store.js'
 export * from './tools.js'
-export { MemoryStore, MemoryBus } from './memory.js'
 export {
   Runtime,
   Session,

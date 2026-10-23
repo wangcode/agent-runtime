@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import type Anthropic from '@anthropic-ai/sdk'
-import { AsyncQueue, MemoryBus, MemoryStore, type ProviderOutput, type Runtime, type RuntimeEvent, createRuntime } from '@agent-runtime/core'
-import { ManagedAgentsProvider, type ManagedAgentsSessionConfig, mapEvent, newMappingState } from '@agent-runtime/provider-managed-agents'
+import { AsyncQueue, type ProviderOutput, type Runtime, type RuntimeEvent, createRuntime } from '@agent-runtime/core'
+import { MemoryBus, MemoryStore } from '@agent-runtime/stores-memory'
+import { ManagedAgentsProvider, type ManagedAgentsSessionConfig, mapEvent, newMappingState } from '@agent-runtime/providers-managed-agents'
 
 /** Minimal stand-in for `client.beta.sessions`. */
 class MockSessions {

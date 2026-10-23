@@ -10,7 +10,7 @@ HTTP routes a frontend needs, and shutting down cleanly. The API reference is in
 ```bash
 pnpm add @agent-runtime/core @agent-runtime/nestjs
 # plus a store and providers, for example:
-pnpm add @agent-runtime/store-postgres pg @agent-runtime/provider-managed-agents @anthropic-ai/sdk
+pnpm add @agent-runtime/stores-postgres pg @agent-runtime/providers-managed-agents @anthropic-ai/sdk
 ```
 
 ## 2. Register the runtime
@@ -134,7 +134,7 @@ scan. Agents keep working throughout. Your pool and bus close afterwards, in the
 Use the in-memory store and the scriptable fake provider. No database or API keys are needed:
 
 ```ts
-import { MemoryBus, MemoryStore } from '@agent-runtime/core'
+import { MemoryBus, MemoryStore } from '@agent-runtime/stores-memory'
 import { FakeProvider } from '@agent-runtime/core/testing'
 
 const fake = new FakeProvider()

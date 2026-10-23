@@ -5,12 +5,12 @@ The runtime itself:
 - the `Runtime` and `Session` API;
 - the unified event model;
 - the session worker (provider connections, tools, approvals, ownership, behaviour rules);
-- in-memory storage;
+- the `Store` and `Bus` interfaces;
 - an RxJS adapter and test helpers.
 
-Every application needs this package. Add a [store](../store-postgres/README.md) for production
-and one or more providers ([Managed Agents](../provider-managed-agents/README.md),
-[AgentCore](../provider-agentcore/README.md)).
+Every application needs this package, plus a store ([in memory](../stores/memory/README.md) for
+development and tests, [Postgres](../stores/postgres/README.md) for production) and one or more providers ([Managed Agents](../providers/managed-agents/README.md),
+[AgentCore](../providers/agentcore/README.md)).
 
 ```bash
 pnpm add @agent-runtime/core
@@ -23,7 +23,7 @@ Entry points:
 | --- | --- |
 | `@agent-runtime/core` | Everything below except RxJS and testing |
 | `@agent-runtime/core/rxjs` | `toObservable()` |
-| `@agent-runtime/core/testing` | `FakeProvider` |
+| `@agent-runtime/core/testing` | `FakeProvider`, `storeContract()` |
 
 ---
 
@@ -173,6 +173,7 @@ own iteration.
 
 ```ts
 import { FakeProvider } from '@agent-runtime/core/testing'
+import { MemoryBus, MemoryStore } from '@agent-runtime/stores-memory'
 
 const fake = new FakeProvider()
 fake.onSend = (sessionId, content) => {
@@ -194,11 +195,19 @@ const runtime = createRuntime({ store: new MemoryStore(), bus: new MemoryBus(), 
 
 ## Storage interfaces
 
-`MemoryStore` and `MemoryBus` implement these in memory. Share one pair between several runtimes to
-simulate a cluster in tests.
+Implementations: [`@agent-runtime/stores-memory`](../stores/memory/README.md) (`MemoryStore`,
+`MemoryBus`) and [`@agent-runtime/stores-postgres`](../stores/postgres/README.md) (`PgStore`,
+`PgBus`).
 
-To use another database, implement `Store` and `Bus`, then run the shared contract tests in
-`packages/store-postgres/test/store-contract.ts` against your implementation.
+To use another database, implement `Store` and `Bus`, then run the shared contract tests from
+your test suite:
+
+```ts
+import { describe, expect, it } from 'vitest'
+import { storeContract } from '@agent-runtime/core/testing'
+
+storeContract('my store', () => new MyStore(), { describe, it, expect })
+```
 
 ```ts
 interface Bus {

@@ -1,4 +1,4 @@
-# @agent-runtime/provider-managed-agents
+# @agent-runtime/providers-managed-agents
 
 Connects [Claude Managed Agents](https://platform.claude.com/docs/en/managed-agents) to
 `agent-runtime`. Your backend gets the runtime's unified events, server-side tools, approvals,
@@ -7,7 +7,7 @@ and multi-instance support on top of Anthropic-hosted agents.
 ## Install
 
 ```bash
-pnpm add @agent-runtime/provider-managed-agents @anthropic-ai/sdk
+pnpm add @agent-runtime/providers-managed-agents @anthropic-ai/sdk
 ```
 
 `@anthropic-ai/sdk` is a peer dependency. Use a version that includes the Managed Agents beta
@@ -18,7 +18,7 @@ pnpm add @agent-runtime/provider-managed-agents @anthropic-ai/sdk
 ```ts
 import Anthropic from '@anthropic-ai/sdk'
 import { createRuntime } from '@agent-runtime/core'
-import { managedAgents, type ManagedAgentsSessionConfig } from '@agent-runtime/provider-managed-agents'
+import { managedAgents, type ManagedAgentsSessionConfig } from '@agent-runtime/providers-managed-agents'
 
 const runtime = createRuntime({
   store,
@@ -77,12 +77,12 @@ API or Console.
 - **Deleted sessions:** a 404 from the API marks the session `terminated`.
 
 Every Managed Agents event type and the unified event it becomes is listed in
-[Managed Agents: event mapping](../../docs/managed-agents.md#event-mapping). API-call costs and
+[Managed Agents: event mapping](../../../docs/managed-agents.md#event-mapping). API-call costs and
 open design questions are in the same guide.
 
 ## Capabilities
 
-`approvalUpdatedInput`: `false` (Managed Agents can only allow or deny). `thinkingContent`: `best_effort` (assembled from deltas). `turnCost`: `true`. `systemMessages`: `native` (`send(…, { system })` sends a `system.message` event). See the [behaviour spec](../../docs/behavior-spec.md#capabilities).
+`approvalUpdatedInput`: `false` (Managed Agents can only allow or deny). `thinkingContent`: `best_effort` (assembled from deltas). `turnCost`: `true`. `systemMessages`: `native` (`send(…, { system })` sends a `system.message` event). See the [behaviour spec](../../../docs/behavior-spec.md#capabilities).
 
 ## Exports
 
@@ -90,11 +90,11 @@ open design questions are in the same guide.
 | --- | --- |
 | `managedAgents(options)` / `ManagedAgentsProvider` | The provider |
 | `ManagedAgentsSessionConfig`, `ManagedAgentsOptions`, `ManagedAgentsCursor` | Types |
-| `MA_EVENT_COVERAGE`, `MA_STOP_REASONS`, `MA_PERMISSIONS`, `MA_DELTA_TYPES`, `MA_MESSAGE_BLOCKS`, `maEventHandling()` | Coverage tables: how every Managed Agents type is handled; see [Event coverage](../../docs/event-coverage.md) |
+| `MA_EVENT_COVERAGE`, `MA_STOP_REASONS`, `MA_PERMISSIONS`, `MA_DELTA_TYPES`, `MA_MESSAGE_BLOCKS`, `maEventHandling()` | Coverage tables: how every Managed Agents type is handled; see [Event coverage](../../../docs/event-coverage.md) |
 | `mapEvent(event, state, opts)`, `newMappingState()` | The pure event mapper, useful for testing or offline conversion of stored Managed Agents events |
 
 ## Further reading
 
-- [Claude Managed Agents guide](../../docs/managed-agents.md)
-- [Event model](../../docs/event-model.md)
-- [Tools and approvals](../../docs/tools-and-approvals.md)
+- [Claude Managed Agents guide](../../../docs/managed-agents.md)
+- [Event model](../../../docs/event-model.md)
+- [Tools and approvals](../../../docs/tools-and-approvals.md)

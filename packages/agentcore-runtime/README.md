@@ -5,7 +5,7 @@ container and:
 
 - implements AgentCore's container contract (`/ping`, `/ws`, `/invocations` on port 8080);
 - speaks the [agent-runtime protocol](../protocol/README.md) to
-  [`@agent-runtime/provider-agentcore`](../provider-agentcore/README.md) in your backend;
+  [`@agent-runtime/providers-agentcore`](../providers/agentcore/README.md) in your backend;
 - keeps a replay log, so the caller can reconnect without losing events;
 - hosts an agent through a pluggable **driver**. A driver for the
   [Claude Agent SDK](https://code.claude.com/docs/en/agent-sdk) is included.
@@ -116,4 +116,4 @@ server handles everything else. See [Writing a provider or driver](../../docs/ex
 ## Further reading
 
 - [Bedrock AgentCore guide](../../docs/agentcore.md)
-- [`@agent-runtime/provider-agentcore`](../provider-agentcore/README.md), the caller side
+- [`@agent-runtime/providers-agentcore`](../providers/agentcore/README.md), the caller side

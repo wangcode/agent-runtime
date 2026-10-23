@@ -9,6 +9,7 @@
   "dependencies": {
     "@agent-runtime/core": "workspace:*",
     "@agent-runtime/nestjs": "workspace:*",
+    "@agent-runtime/stores-memory": "workspace:*",
     "@nestjs/common": "^11.1.0",
     "@nestjs/core": "^11.1.0",
     "@nestjs/platform-express": "^11.1.0",

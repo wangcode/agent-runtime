@@ -27,7 +27,7 @@ With static options:
 
 ```ts
 import { Module } from '@nestjs/common'
-import { MemoryBus, MemoryStore } from '@agent-runtime/core'
+import { MemoryBus, MemoryStore } from '@agent-runtime/stores-memory'
 import { AgentRuntimeModule } from '@agent-runtime/nestjs'
 
 @Module({

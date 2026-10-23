@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import WebSocket from 'ws'
-import { MemoryBus, MemoryStore, type Runtime, type RuntimeEvent, type RuntimeOptions, createRuntime } from '@agent-runtime/core'
+import { type Runtime, type RuntimeEvent, type RuntimeOptions, createRuntime } from '@agent-runtime/core'
+import { MemoryBus, MemoryStore } from '@agent-runtime/stores-memory'
 import { type AgentCoreServer, type AgentDriver, type DriverSession, startAgentCoreServer } from '@agent-runtime/agentcore-runtime'
 import { ClaudeAgentSdkDriver, type ClaudeAgentSdkModule, sdkSessionIdFor } from '@agent-runtime/agentcore-runtime/claude-agent-sdk'
-import { AgentCoreProvider, signWebSocketRequest } from '@agent-runtime/provider-agentcore'
+import { AgentCoreProvider, signWebSocketRequest } from '@agent-runtime/providers-agentcore'
 
 const cleanups: Array<() => Promise<unknown>> = []
 afterEach(async () => {
