@@ -6,18 +6,18 @@ helps when you are deploying, debugging, or extending it.
 ## The big picture
 
 ```
-                ┌──────────────────── API layer: your backend instances ────────────────────┐
- browser ─SSE─▶ │  instance A              instance B              instance C               │
- browser ─HTTP▶ │  session.events()        session.send()          session.resolveApproval()│
-                │  (read events)           (enqueue command)       (enqueue command)        │
-                └──────────┬──────────────────────┬──────────────────────┬──────────────────┘
-                           │   never talks to a provider directly        │
-═══════════════════════════╪══════════════════════╪══════════════════════╪═══════════════════
-                           ▼                      ▼                      ▼
+                   ┌──────────────────── API layer: your backend instances ─────────────────────┐
+ browser ─ SSE ─>  │  instance A              instance B              instance C                │
+ browser ─ HTTP -> │  session.events()        session.send()          session.resolveApproval() │
+                   │  (read events)           (enqueue command)       (enqueue command)         │
+                   └──────────┬──────────────────────┬──────────────────────┬───────────────────┘
+                              │   never talks to a provider directly        │
+══════════════════════════════╪══════════════════════╪══════════════════════╪═══════════════════
+                              ▼                      ▼                      ▼
  ┌─────────────────────────────────┐ ┌────────────────────────────┐ ┌──────────────────────────┐
  │ Agent runtime                   │ │ Store (Postgres)           │ │ Bus (LISTEN/NOTIFY)      │
  │ one SessionWorker per session,  │ │ sessions · events ·        │ │ new event · new command ·│
- │ owned through a lease           │◀▶│ commands · actions ·       │◀▶│ live token deltas        │
+ │ owned through a lease           │ │ commands · actions ·       │ │ live token deltas        │
  │  ├─ holds the provider stream   │ │ transcripts                │ │                          │
  │  ├─ runs custom tools           │ └────────────────────────────┘ └──────────────────────────┘
  │  ├─ applies approval policy     │
